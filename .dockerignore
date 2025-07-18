@@ -1,0 +1,12 @@
+**/.git
+**/.gitignore
+**/README.md
+**/Dockerfile
+**/docker-compose.yml
+**/deploy.sh
+**/.dockerignore
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/create_archive.sh
+**/server.log 
