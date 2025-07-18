@@ -42,22 +42,28 @@ check_local_environment() {
         exit 1
     fi
     
-    # 重新创建干净的虚拟环境
-    log_info "创建干净的虚拟环境..."
-    if [ -d "$VENV_PATH" ]; then
-        rm -rf "$VENV_PATH"
-        log_info "已删除现有虚拟环境"
-    fi
-    
-    python3 -m venv "$VENV_PATH"
-    log_info "虚拟环境创建完成 ✓"
-    
-    # 安装依赖
-    if [ -f "requirements.txt" ]; then
-        log_info "安装Python依赖..."
-        "$VENV_PATH/bin/pip" install --upgrade pip --quiet
-        "$VENV_PATH/bin/pip" install -r requirements.txt --quiet
-        log_info "依赖安装完成 ✓"
+    # 检查并创建虚拟环境
+    if [ ! -d "$VENV_PATH" ]; then
+        log_info "创建虚拟环境..."
+        python3 -m venv "$VENV_PATH"
+        log_info "虚拟环境创建完成 ✓"
+        
+        # 安装依赖
+        if [ -f "requirements.txt" ]; then
+            log_info "安装Python依赖..."
+            "$VENV_PATH/bin/pip" install --upgrade pip --quiet
+            "$VENV_PATH/bin/pip" install -r requirements.txt --quiet
+            log_info "依赖安装完成 ✓"
+        fi
+    else
+        log_info "虚拟环境已存在，跳过创建 ✓"
+        
+        # 检查是否需要更新依赖
+        if [ -f "requirements.txt" ]; then
+            log_info "检查Python依赖是否需要更新..."
+            "$VENV_PATH/bin/pip" install -r requirements.txt --quiet
+            log_info "依赖检查完成 ✓"
+        fi
     fi
     
     # 检查CSV文件
