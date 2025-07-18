@@ -166,11 +166,11 @@ README.md
 CLAUDE.md
 EOF
     
-    # 打包，排除不必要的文件
+    # 打包当前目录的内容（不包含目录本身）
     tar -czf "$LOCAL_ARCHIVE" \
         --exclude-from=.tar_exclude \
-        -C .. \
-        "$(basename "$PWD")"
+        -C . \
+        .
     
     # 清理临时文件
     rm .tar_exclude
@@ -227,8 +227,8 @@ cd "$SERVICE_DIR"
 
 # 停止现有服务
 echo "停止现有Docker服务..."
-if [ -f "gaode/docker-compose.yml" ]; then
-    cd gaode && docker-compose down || true && cd ..
+if [ -f "docker-compose.yml" ]; then
+    docker-compose down || true
 fi
 
 # 清理旧容器（如果存在）
@@ -237,17 +237,19 @@ docker stop gaode-station-service || true
 docker rm gaode-station-service || true
 
 # 备份现有部署（如果存在）
-if [ -d "gaode" ]; then
+if [ -f "docker-compose.yml" ]; then
     echo "备份现有部署..."
-    mv gaode "gaode.backup.$(date +%Y%m%d_%H%M%S)" || true
+    mkdir -p "backup.$(date +%Y%m%d_%H%M%S)"
+    cp -r ./* "backup.$(date +%Y%m%d_%H%M%S)/" 2>/dev/null || true
 fi
+
+# 清理当前目录（保留备份）
+echo "清理当前部署文件..."
+find . -maxdepth 1 -type f ! -name "*.backup.*" ! -name "backup.*" ! -name "$ARCHIVE_NAME" -delete || true
 
 # 解压新版本
 echo "解压新版本..."
 tar -xzf "$ARCHIVE_NAME"
-
-# 进入项目目录
-cd gaode
 
 # 检查必要文件
 if [ ! -f "docker-compose.yml" ] || [ ! -f "Dockerfile" ] || [ ! -f "stations.db" ]; then
@@ -267,7 +269,7 @@ sleep 15
 if docker-compose ps | grep -q "Up"; then
     echo "✅ 远程部署成功！"
     echo "服务地址: http://$(hostname -I | awk '{print $1}'):17263"
-    echo "查看日志: cd $SERVICE_DIR/gaode && docker-compose logs -f"
+    echo "查看日志: cd $SERVICE_DIR && docker-compose logs -f"
 else
     echo "❌ 远程部署失败，查看日志:"
     docker-compose logs
@@ -335,7 +337,7 @@ main() {
     log_info "🎉 一键更新部署完成！"
     echo ""
     log_info "服务地址: http://$REMOTE_HOST:17263"
-    log_info "查看远程日志: ssh $REMOTE_USER@$REMOTE_HOST 'cd $REMOTE_PATH/gaode && docker-compose logs -f'"
+    log_info "查看远程日志: ssh $REMOTE_USER@$REMOTE_HOST 'cd $REMOTE_PATH && docker-compose logs -f'"
     echo "========================================"
 }
 
