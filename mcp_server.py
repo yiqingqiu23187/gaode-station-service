@@ -216,4 +216,18 @@ if __name__ == "__main__":
     import os
     os.environ["FASTMCP_HOST"] = "0.0.0.0"
     os.environ["FASTMCP_PORT"] = "17263"
+    
+    # 添加健康检查端点
+    from fastapi import FastAPI
+    from fastapi.responses import JSONResponse
+    
+    app = FastAPI()
+    
+    @app.get("/health")
+    async def health_check():
+        return JSONResponse({"status": "healthy", "service": "gaode-station-service"})
+    
+    # 将健康检查端点添加到 FastMCP
+    mcp.add_app(app)
+    
     mcp.run(transport="sse")
