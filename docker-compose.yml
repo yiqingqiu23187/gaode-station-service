@@ -13,7 +13,7 @@ services:
       - FASTMCP_HOST=0.0.0.0
       - FASTMCP_PORT=17263
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:17263/sse"]
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:17263/sse', timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 3
