@@ -265,7 +265,7 @@ fi
 
 # 构建并启动服务
 echo "构建并启动Docker服务..."
-docker-compose up -d --build
+docker-compose up -d
 
 # 等待服务启动
 echo "等待服务启动..."
