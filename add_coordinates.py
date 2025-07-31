@@ -13,8 +13,8 @@ def process_csv(input_file, output_file, address_column_name):
         address_column_name (str): 包含地址信息的列名.
     """
     try:
-        # header=1 表示将文件的第二行作为列标题
-        df = pd.read_csv(input_file, header=1)
+        # 使用第一行作为列标题，并指定空值
+        df = pd.read_csv(input_file, header=0, na_values=['', 'nan', 'NaN', 'NULL', 'null'])
     except FileNotFoundError:
         print(f"错误: 文件 '{input_file}' 未找到。")
         return
@@ -24,6 +24,12 @@ def process_csv(input_file, output_file, address_column_name):
 
     # 清理列名中可能存在的多余空格
     df.columns = df.columns.str.strip()
+    
+    # 检查地址列是否存在
+    if address_column_name not in df.columns:
+        print(f"错误: 在CSV文件中未找到列 '{address_column_name}'")
+        print(f"可用的列名: {list(df.columns)}")
+        return
 
     # 应用函数获取经纬度，并创建一个包含经纬度的临时 DataFrame
     # 为了避免超过API的QPS限制，这里可以加入延时
@@ -65,6 +71,6 @@ if __name__ == "__main__":
     INPUT_CSV = '岗位位置信息底表.csv'
     OUTPUT_CSV = '岗位位置信息底表_with_coords.csv'
     # CSV 文件中包含地址的列名
-    ADDRESS_COLUMN = '门店地址'
+    ADDRESS_COLUMN = '门店地址（本站点地址非面试站点地址）'
     
     process_csv(INPUT_CSV, OUTPUT_CSV, ADDRESS_COLUMN) 

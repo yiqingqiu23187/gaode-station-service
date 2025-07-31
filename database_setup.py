@@ -27,8 +27,15 @@ def setup_database(csv_file='岗位位置信息底表_with_coords.csv', db_file=
     df.dropna(subset=['longitude', 'latitude'], inplace=True)
     
     # 将所有列转换为字符串类型，以避免拼接时出错
+    # 对于数值型列，将空值填充为 '0'；对于其他列，填充为 'N/A'
     for col in df.columns:
-        df[col] = df[col].astype(str).fillna('N/A')
+        if col in ['全职总计', '分拣员', '白班理货', '水产专员', '夜班理货', '副站长', '资深副站长',
+                   '兼职总计', '兼职-分拣员', '兼职-白班理货', '兼职-夜班理货', '兼职-水产专员']:
+            # 对于岗位缺口相关的数值列，将空值填充为 '0'
+            df[col] = df[col].astype(str).fillna('0')
+        else:
+            # 对于其他列，保持原有的 'N/A' 填充
+            df[col] = df[col].astype(str).fillna('N/A')
 
     # 定义要拼接的列
     site_info_cols = ['状态', '区域', '服务站', '站长姓名', '联系方式']
@@ -39,7 +46,21 @@ def setup_database(csv_file='岗位位置信息底表_with_coords.csv', db_file=
 
     # 创建站点信息和需求信息的字符串
     def create_combined_string(row, cols):
-        return ', '.join([f"{col}: {row[col]}" for col in cols if col in row and row[col] != 'N/A'])
+        result = []
+        for col in cols:
+            if col in row:
+                value = row[col]
+                # 对于岗位缺口相关的数值列，如果值为空字符串或'N/A'，则显示为'0'
+                if col in ['全职总计', '分拣员', '白班理货', '水产专员', '夜班理货', '副站长', '资深副站长',
+                          '兼职总计', '兼职-分拣员', '兼职-白班理货', '兼职-夜班理货', '兼职-水产专员']:
+                    if value == '' or value == 'N/A' or value == 'nan':
+                        result.append(f"{col}: 0")
+                    else:
+                        result.append(f"{col}: {value}")
+                else:
+                    if value != 'N/A':
+                        result.append(f"{col}: {value}")
+        return ', '.join(result)
 
     df['site_info_str'] = df.apply(lambda row: create_combined_string(row, site_info_cols), axis=1)
     df['demand_info_str'] = df.apply(lambda row: create_combined_string(row, demand_info_cols), axis=1)
