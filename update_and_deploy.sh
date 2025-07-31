@@ -242,17 +242,6 @@ echo "清理旧容器..."
 docker stop gaode-station-service || true
 docker rm gaode-station-service || true
 
-# 备份现有部署（如果存在）
-if [ -f "docker-compose.yml" ]; then
-    echo "备份现有部署..."
-    mkdir -p "backup.$(date +%Y%m%d_%H%M%S)"
-    cp -r ./* "backup.$(date +%Y%m%d_%H%M%S)/" 2>/dev/null || true
-fi
-
-# 清理当前目录（保留备份）
-echo "清理当前部署文件..."
-find . -maxdepth 1 -type f ! -name "*.backup.*" ! -name "backup.*" ! -name "$ARCHIVE_NAME" -delete || true
-
 # 解压新版本
 echo "解压新版本..."
 tar -xzf "$ARCHIVE_NAME"

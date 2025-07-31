@@ -80,6 +80,48 @@ def haversine_distance(lon1, lat1, lon2, lat2):
     r = 6371  # 地球平均半径（单位：公里）
     return c * r
 
+def generate_amap_web_url(longitude, latitude, name=""):
+    """
+    根据经纬度和地点名称生成高德地图网页链接。
+
+    Args:
+        longitude (float): 经度
+        latitude (float): 纬度
+        name (str): 地点名称
+
+    Returns:
+        str: 高德地图网页链接
+    """
+    # 使用高德地图的 URI API 生成网页链接
+    # 格式: https://uri.amap.com/marker?position=经度,纬度&name=地点名称
+    from urllib.parse import quote
+    encoded_name = quote(name) if name else ""
+    url = f"https://uri.amap.com/marker?position={longitude},{latitude}"
+    if encoded_name:
+        url += f"&name={encoded_name}"
+    return url
+
+def generate_navigation_url(longitude, latitude, name="", mode="car"):
+    """
+    根据经纬度和地点名称生成高德地图导航链接。
+
+    Args:
+        longitude (float): 经度
+        latitude (float): 纬度
+        name (str): 地点名称
+        mode (str): 导航模式，可选值: car(驾车), walk(步行), bus(公交)
+
+    Returns:
+        str: 高德地图导航链接
+    """
+    from urllib.parse import quote
+    encoded_name = quote(name) if name else ""
+    url = f"https://uri.amap.com/navigation?to={longitude},{latitude}"
+    if encoded_name:
+        url += f",{encoded_name}"
+    url += f"&mode={mode}&policy=1"
+    return url
+
 def generate_ride_hailing_uri(slon, slat, sname, dlon, dlat, dname):
     """
     根据起点和终点信息，生成一个用于唤起高德地图客户端进行打车的 URI。
@@ -116,6 +158,15 @@ if __name__ == '__main__':
     coords = get_coordinates(test_address)
     if coords:
         print(f"地址 '{test_address}' 的经纬度是: {coords}")
+        
+        # 测试生成高德地图网页链接
+        longitude, latitude = coords
+        amap_url = generate_amap_web_url(longitude, latitude, test_address)
+        print(f"高德地图网页链接: {amap_url}")
+        
+        # 测试生成导航链接
+        nav_url = generate_navigation_url(longitude, latitude, test_address, "car")
+        print(f"驾车导航链接: {nav_url}")
     
     print("\n" + "="*30 + "\n")
 

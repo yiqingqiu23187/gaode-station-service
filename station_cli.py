@@ -17,6 +17,7 @@ import math
 import requests
 import time
 from urllib.parse import urlencode
+from amap_utils import generate_amap_web_url
 
 # --- 配置和全局变量 ---
 
@@ -127,6 +128,17 @@ def find_nearest_stations_cli(
         table.add_row("核心数据", f"站长: {station.get('manager_name', 'N/A')} ({station.get('contact_phone', 'N/A')})")
         table.add_row("", f"面试: {station.get('interview_location', 'N/A')} (对接人: {station.get('interview_contact_person', 'N/A')} / {station.get('interview_contact_phone', 'N/A')})")
         table.add_row("", f"地址: {station.get('address', 'N/A')}")
+        
+        # 生成高德地图网页链接
+        if station.get('longitude') and station.get('latitude'):
+            station_lon = station['longitude']
+            station_lat = station['latitude']
+            station_name = station['station_name']
+            
+            # 生成高德地图网页链接
+            amap_url = generate_amap_web_url(station_lon, station_lat, station_name)
+            table.add_row("地图链接", f"[link={amap_url}]高德地图网页版[/link]")
+        
         table.add_row("站点数据", station.get('site_info_str', '无'))
         table.add_row("需求数据", station.get('demand_info_str', '无'))
 
@@ -142,6 +154,7 @@ def search_stations_by_name_cli(
     """
     from rich.console import Console
     from rich.table import Table
+    import rich
 
     console = Console()
 
@@ -162,7 +175,7 @@ def search_stations_by_name_cli(
 
     console.print(f"\n[bold blue]找到 {len(stations)} 个名称匹配 '{name_query}' 的站点:[/bold blue]")
     
-    table = Table(title="搜索结果", box=typer.rich.box.MINIMAL_DOUBLE_HEAD)
+    table = Table(title="搜索结果", box=rich.box.MINIMAL_DOUBLE_HEAD)
     table.add_column("ID", style="dim")
     table.add_column("服务站名称", style="bold green")
     table.add_column("站点数据", style="cyan")
