@@ -1,7 +1,7 @@
 from mcp.server.fastmcp import FastMCP
 import sqlite3
 from typing import Optional, List, Dict, Any
-from amap_utils import get_coordinates, haversine_distance
+from amap_utils import get_coordinates, haversine_distance, generate_amap_web_url
 import os
 
 # Create a FastMCP server
@@ -100,7 +100,20 @@ def find_nearest_stations(
         stations = cursor.fetchall()
         conn.close()
         
-        return [dict(row) for row in stations]
+        # 为每个站点添加高德地图网页链接
+        result = []
+        for row in stations:
+            station_dict = dict(row)
+            # 如果站点有经纬度坐标，生成高德地图网页链接
+            if station_dict.get('longitude') and station_dict.get('latitude'):
+                station_lon = station_dict['longitude']
+                station_lat = station_dict['latitude']
+                station_name = station_dict['station_name']
+                amap_url = generate_amap_web_url(station_lon, station_lat, station_name)
+                station_dict['amap_web_url'] = amap_url
+            result.append(station_dict)
+        
+        return result
 
     except sqlite3.Error as e:
         return [{"error": f"Database error: {e}"}]
@@ -126,7 +139,20 @@ def search_stations_by_name(name_query: str) -> List[Dict[str, Any]]:
         stations = cursor.fetchall()
         conn.close()
         
-        return [dict(station) for station in stations]
+        # 为每个站点添加高德地图网页链接
+        result = []
+        for station in stations:
+            station_dict = dict(station)
+            # 如果站点有经纬度坐标，生成高德地图网页链接
+            if station_dict.get('longitude') and station_dict.get('latitude'):
+                station_lon = station_dict['longitude']
+                station_lat = station_dict['latitude']
+                station_name = station_dict['station_name']
+                amap_url = generate_amap_web_url(station_lon, station_lat, station_name)
+                station_dict['amap_web_url'] = amap_url
+            result.append(station_dict)
+        
+        return result
     except sqlite3.Error as e:
         return [{"error": f"Database error: {e}"}]
 
@@ -145,7 +171,20 @@ def get_all_stations() -> List[Dict[str, Any]]:
         stations = cursor.fetchall()
         conn.close()
         
-        return [dict(station) for station in stations]
+        # 为每个站点添加高德地图网页链接
+        result = []
+        for station in stations:
+            station_dict = dict(station)
+            # 如果站点有经纬度坐标，生成高德地图网页链接
+            if station_dict.get('longitude') and station_dict.get('latitude'):
+                station_lon = station_dict['longitude']
+                station_lat = station_dict['latitude']
+                station_name = station_dict['station_name']
+                amap_url = generate_amap_web_url(station_lon, station_lat, station_name)
+                station_dict['amap_web_url'] = amap_url
+            result.append(station_dict)
+        
+        return result
     except sqlite3.Error as e:
         return [{"error": f"Database error: {e}"}]
 
