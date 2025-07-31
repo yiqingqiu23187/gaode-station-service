@@ -65,6 +65,6 @@ if __name__ == "__main__":
     INPUT_CSV = '岗位位置信息底表.csv'
     OUTPUT_CSV = '岗位位置信息底表_with_coords.csv'
     # CSV 文件中包含地址的列名
-    ADDRESS_COLUMN = '门店地址（本站点地址非面试站点地址）'
+    ADDRESS_COLUMN = '门店地址'
     
     process_csv(INPUT_CSV, OUTPUT_CSV, ADDRESS_COLUMN) 
