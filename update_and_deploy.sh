@@ -237,10 +237,11 @@ if [ -f "docker-compose.yml" ]; then
     docker-compose down || true
 fi
 
-# 清理旧容器（如果存在）
-echo "清理旧容器..."
+# 清理旧容器和镜像（如果存在）
+echo "清理旧容器和镜像..."
 docker stop gaode-station-service || true
 docker rm gaode-station-service || true
+docker rmi gaode-service_gaode-station-service || true
 
 # 解压新版本
 echo "解压新版本..."
@@ -254,6 +255,7 @@ fi
 
 # 构建并启动服务
 echo "构建并启动Docker服务..."
+docker-compose build
 docker-compose up -d
 
 # 等待服务启动
