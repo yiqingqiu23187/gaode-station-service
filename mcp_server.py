@@ -62,7 +62,21 @@ def find_nearest_stations(
         k (int): The number of nearest stations to return. Defaults to 3.
 
     Returns:
-        List[Dict[str, Any]]: A list of dictionaries, each containing station info and distance.
+        List[Dict[str, Any]]: A list of dictionaries, each containing:
+            - id (int): 站点唯一标识符
+            - station_name (str): 服务站名称
+            - address (str): 门店地址（本站点地址非面试站点地址）
+            - longitude (float): 经度坐标
+            - latitude (float): 纬度坐标
+            - manager_name (str): 站长姓名
+            - contact_phone (str): 联系方式
+            - interview_location (str): 面试地点
+            - interview_contact_person (str): 面试对接人
+            - interview_contact_phone (str): 面试对接人联系方式/站点座机号
+            - site_info_str (str): 站点基本信息（状态、区域、服务站、站长姓名、联系方式）
+            - demand_info_str (str): 岗位需求信息（全职/兼职各岗位人数）
+            - distance_km (float): 距离目标位置的公里数（保留2位小数）
+            - amap_web_url (str): 高德地图网页链接，可直接打开查看站点位置
     """
     if latitude is not None and longitude is not None:
         # Use provided coordinates
@@ -124,10 +138,23 @@ def search_stations_by_name(name_query: str) -> List[Dict[str, Any]]:
     Search for stations by name (partial match).
     
     Args:
-        name_query: Part of the station name to search for
+        name_query (str): Part of the station name to search for
     
     Returns:
-        List of matching stations
+        List[Dict[str, Any]]: A list of dictionaries, each containing:
+            - id (int): 站点唯一标识符
+            - station_name (str): 服务站名称
+            - address (str): 门店地址（本站点地址非面试站点地址）
+            - longitude (float): 经度坐标
+            - latitude (float): 纬度坐标
+            - manager_name (str): 站长姓名
+            - contact_phone (str): 联系方式
+            - interview_location (str): 面试地点
+            - interview_contact_person (str): 面试对接人
+            - interview_contact_phone (str): 面试对接人联系方式/站点座机号
+            - site_info_str (str): 站点基本信息（状态、区域、服务站、站长姓名、联系方式）
+            - demand_info_str (str): 岗位需求信息（全职/兼职各岗位人数）
+            - amap_web_url (str): 高德地图网页链接，可直接打开查看站点位置
     """
     try:
         conn = get_db_connection()
@@ -162,7 +189,20 @@ def get_all_stations() -> List[Dict[str, Any]]:
     Get all stations from the database.
     
     Returns:
-        List of all stations
+        List[Dict[str, Any]]: A list of dictionaries, each containing:
+            - id (int): 站点唯一标识符
+            - station_name (str): 服务站名称
+            - address (str): 门店地址（本站点地址非面试站点地址）
+            - longitude (float): 经度坐标
+            - latitude (float): 纬度坐标
+            - manager_name (str): 站长姓名
+            - contact_phone (str): 联系方式
+            - interview_location (str): 面试地点
+            - interview_contact_person (str): 面试对接人
+            - interview_contact_phone (str): 面试对接人联系方式/站点座机号
+            - site_info_str (str): 站点基本信息（状态、区域、服务站、站长姓名、联系方式）
+            - demand_info_str (str): 岗位需求信息（全职/兼职各岗位人数）
+            - amap_web_url (str): 高德地图网页链接，可直接打开查看站点位置
     """
     try:
         conn = get_db_connection()
@@ -194,7 +234,8 @@ def get_station_count() -> Dict[str, int]:
     Get the total count of stations in the database.
     
     Returns:
-        Dictionary with station count
+        Dict[str, int]: A dictionary containing:
+            - total_stations (int): 数据库中站点的总数量
     """
     try:
         conn = get_db_connection()
@@ -213,10 +254,13 @@ def geocode_address(address: str) -> Dict[str, float]:
     Convert a Chinese address to GPS coordinates using Amap API.
     
     Args:
-        address: The address to geocode
+        address (str): The address to geocode (e.g., "北京市中关村")
     
     Returns:
-        Dictionary with longitude and latitude
+        Dict[str, float]: A dictionary containing:
+            - longitude (float): 经度坐标
+            - latitude (float): 纬度坐标
+            - error (str): 错误信息（如果地址解析失败）
     """
     coords = get_coordinates(address)
     if coords:
@@ -233,16 +277,17 @@ def calculate_distance(
     to_longitude: float
 ) -> Dict[str, float]:
     """
-    Calculate the distance between two GPS coordinates.
+    Calculate the distance between two GPS coordinates using Haversine formula.
     
     Args:
-        from_latitude: Starting latitude
-        from_longitude: Starting longitude
-        to_latitude: Destination latitude
-        to_longitude: Destination longitude
+        from_latitude (float): Starting latitude
+        from_longitude (float): Starting longitude
+        to_latitude (float): Destination latitude
+        to_longitude (float): Destination longitude
     
     Returns:
-        Dictionary with distance in kilometers
+        Dict[str, float]: A dictionary containing:
+            - distance_km (float): 两点间的距离，单位为公里（保留2位小数）
     """
     distance = haversine_distance(
         from_longitude, from_latitude,

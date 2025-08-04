@@ -66,15 +66,16 @@ check_local_environment() {
         fi
     fi
     
-    # 检查CSV文件
-    if [ ! -f "$CSV_FILE" ]; then
-        log_error "未找到CSV文件: $CSV_FILE"
-        log_warning "请确保您已手动更新了岗位位置信息底表.csv文件"
+    # 检查带坐标的CSV文件
+    COORDS_CSV="岗位位置信息底表_with_coords.csv"
+    if [ ! -f "$COORDS_CSV" ]; then
+        log_error "未找到带坐标的CSV文件: $COORDS_CSV"
+        log_warning "请确保您已有包含坐标信息的CSV文件"
         exit 1
     fi
     
     # 检查必要的Python脚本
-    for script in "add_coordinates.py" "database_setup.py"; do
+    for script in "database_setup.py"; do
         if [ ! -f "$script" ]; then
             log_error "未找到必要脚本: $script"
             exit 1
@@ -111,27 +112,20 @@ process_local_data() {
     # 确保虚拟环境已激活
     source "$VENV_PATH/bin/activate"
     
+    # 检查带坐标的CSV文件是否存在
+    COORDS_CSV="岗位位置信息底表_with_coords.csv"
+    if [ ! -f "$COORDS_CSV" ]; then
+        log_error "未找到带坐标的CSV文件: $COORDS_CSV"
+        log_warning "请确保您已有包含坐标信息的CSV文件"
+        exit 1
+    fi
+    log_info "找到带坐标的CSV文件 ✓"
+    
     # 备份旧的数据库文件（如果存在）
     if [ -f "stations.db" ]; then
         cp stations.db "stations.db.backup.$(date +%Y%m%d_%H%M%S)"
         log_info "已备份现有数据库文件"
     fi
-    
-    # 删除旧的处理文件
-    if [ -f "岗位位置信息底表_with_coords.csv" ]; then
-        rm "岗位位置信息底表_with_coords.csv"
-        log_info "已删除旧的坐标文件"
-    fi
-    
-    # 添加坐标信息
-    log_info "正在为地址添加经纬度信息..."
-    "$VENV_PATH/bin/python" add_coordinates.py
-    
-    if [ ! -f "岗位位置信息底表_with_coords.csv" ]; then
-        log_error "坐标添加失败"
-        exit 1
-    fi
-    log_info "坐标添加完成 ✓"
     
     # 创建数据库
     log_info "正在创建SQLite数据库..."
