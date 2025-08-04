@@ -251,8 +251,10 @@ def calculate_distance(
     return {"distance_km": round(distance, 2)}
 
 if __name__ == "__main__":
-    # For testing the server
+    # 本地测试时使用
     import os
-    os.environ["FASTMCP_HOST"] = "0.0.0.0"
-    os.environ["FASTMCP_PORT"] = "17263"
+    
+    print("Starting MCP server for local testing...")
+    
+    # 使用简单的运行方式
     mcp.run(transport="sse")
