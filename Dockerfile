@@ -20,4 +20,4 @@ COPY . .
 EXPOSE 17263
 
 # 启动MCP服务器
-CMD ["fastmcp", "run", "mcp_server.py", "--transport", "sse", "--host", "0.0.0.0", "--port", "17263"] 
+CMD ["python", "mcp_server.py"] 

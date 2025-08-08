@@ -298,8 +298,17 @@ def calculate_distance(
 if __name__ == "__main__":
     # 本地测试时使用
     import os
+    import uvicorn
     
     print("Starting MCP server for local testing...")
     
-    # 使用简单的运行方式
-    mcp.run(transport="sse")
+    # 使用FastMCP的sse_app()方法获取Starlette应用
+    app = mcp.sse_app()
+    
+    # 使用uvicorn启动服务器
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=17263,
+        log_level="info"
+    )
