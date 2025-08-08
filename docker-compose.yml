@@ -5,15 +5,16 @@ services:
     build: .
     ports:
       - "17263:17263"
+      - "5000:5000"
     restart: unless-stopped
     container_name: gaode-station-service
     volumes:
-      - ./stations.db:/app/stations.db:ro
+      - ./stations.db:/app/stations.db
     environment:
       - FASTMCP_HOST=0.0.0.0
       - FASTMCP_PORT=17263
     healthcheck:
-      test: ["CMD", "pgrep", "-f", "python.*mcp_server.py"]
+      test: ["CMD", "bash", "-lc", "(pgrep -f 'python.*mcp_server.py' && pgrep -f 'python.*web_server.py') > /dev/null"]
       interval: 30s
       timeout: 10s
       retries: 3
