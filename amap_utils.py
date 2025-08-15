@@ -152,6 +152,73 @@ def generate_ride_hailing_uri(slon, slat, sname, dlon, dlat, dname):
     uri = f"amap://route/plan/?{query_string}"
     return uri
 
+def get_bicycling_duration(origin_lon, origin_lat, dest_lon, dest_lat, api_key=API_KEY, max_retries=3, retry_delay=1):
+    """
+    使用高德地图骑行路径规划API获取两点间的骑车时间。
+    
+    Args:
+        origin_lon (float): 起点经度
+        origin_lat (float): 起点纬度
+        dest_lon (float): 终点经度
+        dest_lat (float): 终点纬度
+        api_key (str): 高德地图的API Key
+        max_retries (int): 最大重试次数
+        retry_delay (int): 每次重试前的等待时间（秒）
+    
+    Returns:
+        dict: 包含骑行时间的字典，格式为 {"duration_minutes": int, "distance_meters": int} 或 {"error": str}
+    """
+    # 骑行路径规划API地址
+    BICYCLING_URL = "https://restapi.amap.com/v4/direction/bicycling"
+    
+    params = {
+        'key': api_key,
+        'origin': f"{origin_lon},{origin_lat}",
+        'destination': f"{dest_lon},{dest_lat}"
+    }
+    
+    for attempt in range(max_retries):
+        try:
+            response = requests.get(BICYCLING_URL, params=params)
+            response.raise_for_status()
+            data = response.json()
+            
+            if data.get('errcode') == 0 and data.get('data', {}).get('paths'):
+                # 获取第一条路径的骑行时间和距离
+                path = data['data']['paths'][0]
+                duration_seconds = path.get('duration', 0)  # 骑行时间（秒）
+                distance_meters = path.get('distance', 0)   # 骑行距离（米）
+                
+                # 转换为分钟
+                duration_minutes = round(duration_seconds / 60)
+                
+                print(f"成功获取骑行路径: 时间={duration_minutes}分钟, 距离={distance_meters}米")
+                return {
+                    "duration_minutes": duration_minutes,
+                    "distance_meters": distance_meters
+                }
+            else:
+                error_info = data.get('errmsg', '未知错误')
+                if 'CUQPS_HAS_EXCEEDED_THE_LIMIT' in error_info:
+                    print(f"警告: 骑行路径查询超限，正在进行第 {attempt + 1}/{max_retries} 次重试...")
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    print(f"错误：无法获取骑行路径. 原因: {error_info}")
+                    return {"error": f"API错误: {error_info}"}
+                    
+        except requests.exceptions.RequestException as e:
+            print(f"错误: 请求骑行路径API失败. 异常: {e}")
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)
+            continue
+        except Exception as e:
+            print(f"错误: 处理骑行路径查询时发生未知异常. 异常: {e}")
+            return {"error": f"未知错误: {str(e)}"}
+    
+    print(f"错误: 达到最大重试次数后，仍无法获取骑行路径。")
+    return {"error": "达到最大重试次数，无法获取骑行路径"}
+
 if __name__ == '__main__':
     # --- 测试地址转经纬度 ---
     test_address = "北京市朝阳区阜通东大街6号"

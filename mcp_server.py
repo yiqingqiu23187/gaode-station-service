@@ -1,7 +1,7 @@
 from mcp.server.fastmcp import FastMCP
 import sqlite3
 from typing import Optional, List, Dict, Any
-from amap_utils import get_coordinates, haversine_distance, generate_amap_web_url
+from amap_utils import get_coordinates, haversine_distance, get_bicycling_duration
 import os
 
 # Create a FastMCP server
@@ -76,7 +76,8 @@ def find_nearest_stations(
             - site_info_str (str): 站点基本信息（状态、区域、服务站、站长姓名、联系方式）
             - demand_info_str (str): 岗位需求信息（全职/兼职各岗位人数）
             - distance_km (float): 距离目标位置的公里数（保留2位小数）
-            - amap_web_url (str): 高德地图网页链接，可直接打开查看站点位置
+            - bicycling_duration_minutes (int): 从起点到该站点的骑车时间（分钟）
+            - bicycling_distance_meters (int): 从起点到该站点的骑车距离（米）
     """
     if latitude is not None and longitude is not None:
         # Use provided coordinates
@@ -114,17 +115,27 @@ def find_nearest_stations(
         stations = cursor.fetchall()
         conn.close()
         
-        # 为每个站点添加高德地图网页链接
+        # 为每个站点添加骑车时间
         result = []
         for row in stations:
             station_dict = dict(row)
-            # 如果站点有经纬度坐标，生成高德地图网页链接
+            # 如果站点有经纬度坐标，获取骑车时间
             if station_dict.get('longitude') and station_dict.get('latitude'):
                 station_lon = station_dict['longitude']
                 station_lat = station_dict['latitude']
-                station_name = station_dict['station_name']
-                amap_url = generate_amap_web_url(station_lon, station_lat, station_name)
-                station_dict['amap_web_url'] = amap_url
+                
+                # 获取从起点到该站点的骑车时间
+                bicycling_info = get_bicycling_duration(
+                    target_lon, target_lat, 
+                    station_lon, station_lat
+                )
+                
+                if 'error' not in bicycling_info:
+                    station_dict['bicycling_duration_minutes'] = bicycling_info.get('duration_minutes')
+                    station_dict['bicycling_distance_meters'] = bicycling_info.get('distance_meters')
+                else:
+                    station_dict['bicycling_duration_minutes'] = None
+                    station_dict['bicycling_distance_meters'] = None
             result.append(station_dict)
         
         return result
@@ -154,7 +165,6 @@ def search_stations_by_name(name_query: str) -> List[Dict[str, Any]]:
             - interview_contact_phone (str): 面试对接人联系方式/站点座机号
             - site_info_str (str): 站点基本信息（状态、区域、服务站、站长姓名、联系方式）
             - demand_info_str (str): 岗位需求信息（全职/兼职各岗位人数）
-            - amap_web_url (str): 高德地图网页链接，可直接打开查看站点位置
     """
     try:
         conn = get_db_connection()
@@ -166,17 +176,10 @@ def search_stations_by_name(name_query: str) -> List[Dict[str, Any]]:
         stations = cursor.fetchall()
         conn.close()
         
-        # 为每个站点添加高德地图网页链接
+        # 直接返回站点信息
         result = []
         for station in stations:
             station_dict = dict(station)
-            # 如果站点有经纬度坐标，生成高德地图网页链接
-            if station_dict.get('longitude') and station_dict.get('latitude'):
-                station_lon = station_dict['longitude']
-                station_lat = station_dict['latitude']
-                station_name = station_dict['station_name']
-                amap_url = generate_amap_web_url(station_lon, station_lat, station_name)
-                station_dict['amap_web_url'] = amap_url
             result.append(station_dict)
         
         return result
@@ -202,7 +205,6 @@ def get_all_stations() -> List[Dict[str, Any]]:
             - interview_contact_phone (str): 面试对接人联系方式/站点座机号
             - site_info_str (str): 站点基本信息（状态、区域、服务站、站长姓名、联系方式）
             - demand_info_str (str): 岗位需求信息（全职/兼职各岗位人数）
-            - amap_web_url (str): 高德地图网页链接，可直接打开查看站点位置
     """
     try:
         conn = get_db_connection()
@@ -211,17 +213,10 @@ def get_all_stations() -> List[Dict[str, Any]]:
         stations = cursor.fetchall()
         conn.close()
         
-        # 为每个站点添加高德地图网页链接
+        # 直接返回站点信息
         result = []
         for station in stations:
             station_dict = dict(station)
-            # 如果站点有经纬度坐标，生成高德地图网页链接
-            if station_dict.get('longitude') and station_dict.get('latitude'):
-                station_lon = station_dict['longitude']
-                station_lat = station_dict['latitude']
-                station_name = station_dict['station_name']
-                amap_url = generate_amap_web_url(station_lon, station_lat, station_name)
-                station_dict['amap_web_url'] = amap_url
             result.append(station_dict)
         
         return result
