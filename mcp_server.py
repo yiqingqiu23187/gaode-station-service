@@ -94,36 +94,73 @@ def find_nearest_stations(
         conn.create_function("haversine", 4, haversine_distance)
 
         cursor = conn.cursor()
-        
-        # The new query calculates distance, orders by it, and limits to k results
-        query = """
-        SELECT 
-            *,
-            ROUND(haversine(?, ?, longitude, latitude), 2) as distance_km
-        FROM 
-            stations
-        ORDER BY 
-            distance_km
-        LIMIT ?
-        """
-        
-        cursor.execute(query, (target_lon, target_lat, k))
-        stations = cursor.fetchall()
+
+        def filter_demand_info(demand_info_str: str) -> str:
+            if not demand_info_str:
+                return ""
+            parts = [p.strip() for p in demand_info_str.split(',') if p.strip()]
+            kept = []
+            for part in parts:
+                if ':' not in part:
+                    continue
+                label, value = part.split(':', 1)
+                value = value.strip()
+                if value.lower() in {"nan", "n/a"} or value == "":
+                    continue
+                try:
+                    # 过滤值为0或0.0
+                    if float(value) == 0.0:
+                        continue
+                except Exception:
+                    # 非数字则保留
+                    pass
+                kept.append(f"{label.strip()}: {value}")
+            return ', '.join(kept)
+
+        # 逐步扩大查询范围以满足k个有效站点
+        result: List[Dict[str, Any]] = []
+        fetch_limit = max(k * 3, 10)
+        max_attempts = 4
+        attempt = 0
+        while len(result) < k and attempt < max_attempts:
+            query = """
+            SELECT 
+                *,
+                ROUND(haversine(?, ?, longitude, latitude), 2) as distance_km
+            FROM 
+                stations
+            ORDER BY 
+                distance_km
+            LIMIT ?
+            """
+            cursor.execute(query, (target_lon, target_lat, fetch_limit))
+            rows = cursor.fetchall()
+
+            # 清空并重新筛选，确保按距离顺序去重后取前k个有效
+            filtered: List[Dict[str, Any]] = []
+            for row in rows:
+                station = dict(row)
+                # 过滤岗位信息，将空缺为0的岗位移除
+                original = station.get('demand_info_str', '')
+                filtered_demand = filter_demand_info(original)
+                if not filtered_demand:
+                    # 整个站点没有岗位，丢弃
+                    continue
+                station['demand_info_str'] = filtered_demand
+                # 添加高德链接
+                if station.get('longitude') and station.get('latitude'):
+                    amap_url = generate_amap_web_url(
+                        station['longitude'], station['latitude'], station['station_name']
+                    )
+                    station['amap_web_url'] = amap_url
+                filtered.append(station)
+
+            # 去重并保留距离最近的前k个
+            result = filtered[:k]
+            attempt += 1
+            fetch_limit *= 2  # 扩大范围再次尝试
+
         conn.close()
-        
-        # 为每个站点添加高德地图网页链接
-        result = []
-        for row in stations:
-            station_dict = dict(row)
-            # 如果站点有经纬度坐标，生成高德地图网页链接
-            if station_dict.get('longitude') and station_dict.get('latitude'):
-                station_lon = station_dict['longitude']
-                station_lat = station_dict['latitude']
-                station_name = station_dict['station_name']
-                amap_url = generate_amap_web_url(station_lon, station_lat, station_name)
-                station_dict['amap_web_url'] = amap_url
-            result.append(station_dict)
-        
         return result
 
     except sqlite3.Error as e:
