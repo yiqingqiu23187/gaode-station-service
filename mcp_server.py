@@ -65,16 +65,13 @@ def find_nearest_stations(
         List[Dict[str, Any]]: A list of dictionaries, each containing:
             - id (int): 站点唯一标识符
             - station_name (str): 服务站名称
-            - address (str): 门店地址（本站点地址非面试站点地址）
+            - address (str): 门店地址
             - longitude (float): 经度坐标
             - latitude (float): 纬度坐标
-            - manager_name (str): 站长姓名
+            - interview_contact_person (str): 面试联系人
             - contact_phone (str): 联系方式
-            - interview_location (str): 面试地点
-            - interview_contact_person (str): 面试对接人
-            - interview_contact_phone (str): 面试对接人联系方式/站点座机号
-            - site_info_str (str): 站点基本信息（状态、区域、服务站、站长姓名、联系方式）
-            - demand_info_str (str): 岗位需求信息（全职/兼职各岗位人数）
+            - site_info_str (str): 站点基本信息（区域、行政区、站点）
+            - demand_info_str (str): 岗位需求信息（各岗位人数）
             - distance_km (float): 距离目标位置的公里数（保留2位小数）
             - amap_web_url (str): 高德地图网页链接，可直接打开查看站点位置
     """
@@ -144,16 +141,13 @@ def search_stations_by_name(name_query: str) -> List[Dict[str, Any]]:
         List[Dict[str, Any]]: A list of dictionaries, each containing:
             - id (int): 站点唯一标识符
             - station_name (str): 服务站名称
-            - address (str): 门店地址（本站点地址非面试站点地址）
+            - address (str): 门店地址
             - longitude (float): 经度坐标
             - latitude (float): 纬度坐标
-            - manager_name (str): 站长姓名
+            - interview_contact_person (str): 面试联系人
             - contact_phone (str): 联系方式
-            - interview_location (str): 面试地点
-            - interview_contact_person (str): 面试对接人
-            - interview_contact_phone (str): 面试对接人联系方式/站点座机号
-            - site_info_str (str): 站点基本信息（状态、区域、服务站、站长姓名、联系方式）
-            - demand_info_str (str): 岗位需求信息（全职/兼职各岗位人数）
+            - site_info_str (str): 站点基本信息（区域、行政区、站点）
+            - demand_info_str (str): 岗位需求信息（各岗位人数）
             - amap_web_url (str): 高德地图网页链接，可直接打开查看站点位置
     """
     try:
@@ -192,16 +186,13 @@ def get_all_stations() -> List[Dict[str, Any]]:
         List[Dict[str, Any]]: A list of dictionaries, each containing:
             - id (int): 站点唯一标识符
             - station_name (str): 服务站名称
-            - address (str): 门店地址（本站点地址非面试站点地址）
+            - address (str): 门店地址
             - longitude (float): 经度坐标
             - latitude (float): 纬度坐标
-            - manager_name (str): 站长姓名
+            - interview_contact_person (str): 面试联系人
             - contact_phone (str): 联系方式
-            - interview_location (str): 面试地点
-            - interview_contact_person (str): 面试对接人
-            - interview_contact_phone (str): 面试对接人联系方式/站点座机号
-            - site_info_str (str): 站点基本信息（状态、区域、服务站、站长姓名、联系方式）
-            - demand_info_str (str): 岗位需求信息（全职/兼职各岗位人数）
+            - site_info_str (str): 站点基本信息（区域、行政区、站点）
+            - demand_info_str (str): 岗位需求信息（各岗位人数）
             - amap_web_url (str): 高德地图网页链接，可直接打开查看站点位置
     """
     try:

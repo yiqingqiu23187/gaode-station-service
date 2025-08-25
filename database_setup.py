@@ -17,7 +17,7 @@ def setup_database(csv_file='岗位位置信息底表_with_coords.csv', db_file=
         df = pd.read_csv(csv_file)
         print(f"成功读取CSV文件: '{csv_file}'")
     except FileNotFoundError:
-        print(f"错误: CSV文件 '{csv_file}' 未找到。请先运行 'add_coordinates.py' 生成该文件。")
+        print(f"错误: CSV文件 '{csv_file}' 未找到。")
         return
     except Exception as e:
         print(f"读取CSV文件时出错: {e}")
@@ -29,19 +29,19 @@ def setup_database(csv_file='岗位位置信息底表_with_coords.csv', db_file=
     # 将所有列转换为字符串类型，以避免拼接时出错
     # 对于数值型列，将空值填充为 '0'；对于其他列，填充为 'N/A'
     for col in df.columns:
-        if col in ['全职总计', '分拣员', '白班理货', '水产专员', '夜班理货', '副站长', '资深副站长',
-                   '兼职总计', '兼职-分拣员', '兼职-白班理货', '兼职-夜班理货', '兼职-水产专员']:
-            # 对于岗位缺口相关的数值列，将空值填充为 '0'
+        if col in ['全职分拣', '全职白班', '全职水产', '全职夜班', '夜班分拣', '资深副站长', '副站长', 
+                   '果切员', '库管员', '上架员', '果蔬加工员']:
+            # 对于岗位需求相关的数值列，将空值填充为 '0'
             df[col] = df[col].astype(str).fillna('0')
         else:
             # 对于其他列，保持原有的 'N/A' 填充
             df[col] = df[col].astype(str).fillna('N/A')
 
     # 定义要拼接的列
-    site_info_cols = ['状态', '区域', '服务站', '站长姓名', '联系方式']
+    site_info_cols = ['区域', '行政区', '站点']
     demand_info_cols = [
-        '全职总计', '分拣员', '白班理货', '水产专员', '夜班理货', '副站长', '资深副站长',
-        '兼职总计', '兼职-分拣员', '兼职-白班理货', '兼职-夜班理货', '兼职-水产专员'
+        '全职分拣', '全职白班', '全职水产', '全职夜班', '夜班分拣', '资深副站长', '副站长',
+        '果切员', '库管员', '上架员', '果蔬加工员'
     ]
 
     # 创建站点信息和需求信息的字符串
@@ -50,9 +50,9 @@ def setup_database(csv_file='岗位位置信息底表_with_coords.csv', db_file=
         for col in cols:
             if col in row:
                 value = row[col]
-                # 对于岗位缺口相关的数值列，如果值为空字符串或'N/A'，则显示为'0'
-                if col in ['全职总计', '分拣员', '白班理货', '水产专员', '夜班理货', '副站长', '资深副站长',
-                          '兼职总计', '兼职-分拣员', '兼职-白班理货', '兼职-夜班理货', '兼职-水产专员']:
+                # 对于岗位需求相关的数值列，如果值为空字符串或'N/A'，则显示为'0'
+                if col in ['全职分拣', '全职白班', '全职水产', '全职夜班', '夜班分拣', '资深副站长', '副站长',
+                          '果切员', '库管员', '上架员', '果蔬加工员']:
                     if value == '' or value == 'N/A' or value == 'nan':
                         result.append(f"{col}: 0")
                     else:
@@ -67,23 +67,18 @@ def setup_database(csv_file='岗位位置信息底表_with_coords.csv', db_file=
     
     # 重命名核心数据列
     df.rename(columns={
-        '服务站': 'station_name',
-        '门店地址（本站点地址非面试站点地址）': 'address',
-        '站长姓名': 'manager_name',
+        '站点': 'station_name',
+        '门店地址': 'address',
+        '面试联系人': 'interview_contact_person',
         '联系方式': 'contact_phone',
-        '面试地点': 'interview_location',
-        '面试对接人': 'interview_contact_person',
-        '面试对接人联系方式/站点座机号': 'interview_contact_phone',
     }, inplace=True)
 
     # 选择需要的列
     columns_to_keep = [
-        'station_name', 'address', 'longitude', 'latitude', 'manager_name', 'contact_phone',
-        'interview_location', 'interview_contact_person', 'interview_contact_phone',
+        'station_name', 'address', 'longitude', 'latitude', 'interview_contact_person', 'contact_phone',
         'site_info_str', 'demand_info_str'
     ]
     df_selected = df[columns_to_keep].copy()
-
 
     try:
         # 连接到SQLite数据库
@@ -98,11 +93,8 @@ def setup_database(csv_file='岗位位置信息底表_with_coords.csv', db_file=
             address TEXT,
             longitude REAL NOT NULL,
             latitude REAL NOT NULL,
-            manager_name TEXT,
-            contact_phone TEXT,
-            interview_location TEXT,
             interview_contact_person TEXT,
-            interview_contact_phone TEXT,
+            contact_phone TEXT,
             site_info_str TEXT,
             demand_info_str TEXT
         )
