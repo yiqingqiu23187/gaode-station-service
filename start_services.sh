@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# 初始化数据库（如果还没有创建的话）
+echo "检查并初始化数据库..."
+if [ ! -f "/app/stations.db" ]; then
+    echo "数据库不存在，正在创建数据库并导入数据..."
+    python database_setup.py all
+else
+    echo "数据库已存在，跳过初始化"
+fi
+
 # 启动 MCP Server (SSE via uvicorn in mcp_server.py)
 python mcp_server.py &
 MCP_PID=$!

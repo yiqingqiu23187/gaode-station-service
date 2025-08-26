@@ -1,7 +1,7 @@
 from mcp.server.fastmcp import FastMCP
 import sqlite3
 from typing import Optional, List, Dict, Any
-from amap_utils import get_coordinates, haversine_distance, generate_amap_web_url
+from amap_utils import get_coordinates, haversine_distance, generate_amap_web_url, get_bicycling_duration
 import os
 
 # Create a FastMCP server
@@ -322,6 +322,137 @@ def calculate_distance(
         to_longitude, to_latitude
     )
     return {"distance_km": round(distance, 2)}
+
+@mcp.tool()
+def find_best_job(
+    user_latitude: float,
+    user_longitude: float,
+    user_gender: str,
+    k: int = 2000
+) -> List[Dict[str, Any]]:
+    """
+    根据用户信息在job_positions表中筛选并推荐合适的工作岗位。
+    
+    Args:
+        user_latitude (float): 用户所在位置的纬度
+        user_longitude (float): 用户所在位置的经度
+        user_gender (str): 用户性别，可选值："男", "女", "不限"
+        k (int): 返回的最大岗位数量，默认2000个
+    
+    Returns:
+        List[Dict[str, Any]]: 推荐的岗位列表，每个字典包含：
+            - job_type (str): 岗位类型
+            - recruiting_unit (str): 招聘单位
+            - location (str): 位置
+            - relevant_experience (str): 相关经验
+            - interview_time (str): 面试时间
+            - trial_time (str): 试岗时间
+            - insurance_status (str): 保险情况
+            - accommodation_status (str): 吃住情况
+            - distance_km (float): 距离用户的公里数
+            - urgent_capacity (int): 运力紧急情况（1表示紧急，0表示普通）
+            - bicycling_duration_minutes (int): 骑行时间（分钟）
+    """
+    try:
+        conn = get_db_connection()
+        
+        # 检查job_positions表是否存在
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='job_positions'")
+        table_exists = cursor.fetchone()
+        if not table_exists:
+            conn.close()
+            return [{"error": "job_positions表不存在，请先运行数据库初始化"}]
+        
+        # 注册距离计算函数
+        conn.create_function("haversine", 4, haversine_distance)
+        
+        # 构建SQL查询
+        # 1. 剔除currently_recruiting != '是'的岗位
+        # 2. 根据性别筛选
+        # 3. 计算距离并排序
+        gender_condition = ""
+        if user_gender in ["男", "女"]:
+            gender_condition = "AND (gender = ? OR gender = '不限')"
+        
+        query = f"""
+        SELECT 
+            job_type,
+            recruiting_unit,
+            location,
+            longitude,
+            latitude,
+            relevant_experience,
+            interview_time,
+            trial_time,
+            insurance_status,
+            accommodation_status,
+            urgent_capacity,
+            ROUND(haversine(?, ?, longitude, latitude), 2) as distance_km
+        FROM 
+            job_positions
+        WHERE 
+            currently_recruiting = '是'
+            AND longitude IS NOT NULL 
+            AND latitude IS NOT NULL
+            {gender_condition}
+        ORDER BY 
+            urgent_capacity DESC,
+            distance_km ASC
+        LIMIT ?
+        """
+        
+        # 准备查询参数
+        params = [user_longitude, user_latitude]
+        if user_gender in ["男", "女"]:
+            params.append(user_gender)
+        params.append(k)
+        
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        conn.close()
+        
+        # 格式化结果
+        result = []
+        for row in rows:
+            job_dict = {
+                "job_type": row["job_type"],
+                "recruiting_unit": row["recruiting_unit"], 
+                "location": row["location"],
+                "relevant_experience": row["relevant_experience"],
+                "interview_time": row["interview_time"],
+                "trial_time": row["trial_time"],
+                "insurance_status": row["insurance_status"],
+                "accommodation_status": row["accommodation_status"],
+                "distance_km": row["distance_km"],
+                "urgent_capacity": row["urgent_capacity"]
+            }
+            
+            # 获取骑行时间
+            if row["longitude"] and row["latitude"]:
+                bicycling_info = get_bicycling_duration(
+                    user_longitude, user_latitude,
+                    row["longitude"], row["latitude"]
+                )
+                
+                if "error" not in bicycling_info:
+                    job_dict["bicycling_duration_minutes"] = bicycling_info.get("duration_minutes", 0)
+                else:
+                    # 如果API调用失败，设置为默认值
+                    job_dict["bicycling_duration_minutes"] = 0
+                    print(f"获取骑行时间失败: {bicycling_info.get('error', '未知错误')}")
+            else:
+                # 如果没有有效经纬度，设置为默认值
+                job_dict["bicycling_duration_minutes"] = 0
+            
+            result.append(job_dict)
+        
+        return result
+        
+    except sqlite3.Error as e:
+        return [{"error": f"数据库错误: {e}"}]
+    except Exception as e:
+        return [{"error": f"查询过程中发生错误: {e}"}]
 
 if __name__ == "__main__":
     # 本地测试时使用
