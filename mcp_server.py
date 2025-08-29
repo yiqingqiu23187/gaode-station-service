@@ -343,14 +343,26 @@ def find_best_job(
         List[Dict[str, Any]]: 推荐的岗位列表，每个字典包含：
             - job_type (str): 岗位类型
             - recruiting_unit (str): 招聘单位
+            - city (str): 城市
+            - gender (str): 性别要求
+            - age_requirement (str): 年龄要求
+            - special_requirements (str): 特殊要求
+            - accept_criminal_record (str): 是否接受有犯罪记录
             - location (str): 位置
+            - longitude (float): 岗位经度坐标
+            - latitude (float): 岗位纬度坐标
+            - urgent_capacity (int): 运力紧急情况（1表示紧急，0表示普通）
+            - working_hours (str): 工作时间
             - relevant_experience (str): 相关经验
+            - full_time (str): 全职
+            - salary (str): 薪资
+            - job_content (str): 工作内容
             - interview_time (str): 面试时间
             - trial_time (str): 试岗时间
+            - currently_recruiting (str): 当前是否招聘
             - insurance_status (str): 保险情况
             - accommodation_status (str): 吃住情况
             - distance_km (float): 距离用户的公里数
-            - urgent_capacity (int): 运力紧急情况（1表示紧急，0表示普通）
             - bicycling_duration_minutes (int): 骑行时间（分钟）
     """
     try:
@@ -379,15 +391,25 @@ def find_best_job(
         SELECT 
             job_type,
             recruiting_unit,
+            city,
+            gender,
+            age_requirement,
+            special_requirements,
+            accept_criminal_record,
             location,
             longitude,
             latitude,
+            urgent_capacity,
+            working_hours,
             relevant_experience,
+            full_time,
+            salary,
+            job_content,
             interview_time,
             trial_time,
+            currently_recruiting,
             insurance_status,
             accommodation_status,
-            urgent_capacity,
             ROUND(haversine(?, ?, longitude, latitude), 2) as distance_km
         FROM 
             job_positions
@@ -417,15 +439,27 @@ def find_best_job(
         for row in rows:
             job_dict = {
                 "job_type": row["job_type"],
-                "recruiting_unit": row["recruiting_unit"], 
+                "recruiting_unit": row["recruiting_unit"],
+                "city": row["city"],
+                "gender": row["gender"],
+                "age_requirement": row["age_requirement"],
+                "special_requirements": row["special_requirements"],
+                "accept_criminal_record": row["accept_criminal_record"],
                 "location": row["location"],
+                "longitude": row["longitude"],
+                "latitude": row["latitude"],
+                "urgent_capacity": row["urgent_capacity"],
+                "working_hours": row["working_hours"],
                 "relevant_experience": row["relevant_experience"],
+                "full_time": row["full_time"],
+                "salary": row["salary"],
+                "job_content": row["job_content"],
                 "interview_time": row["interview_time"],
                 "trial_time": row["trial_time"],
+                "currently_recruiting": row["currently_recruiting"],
                 "insurance_status": row["insurance_status"],
                 "accommodation_status": row["accommodation_status"],
-                "distance_km": row["distance_km"],
-                "urgent_capacity": row["urgent_capacity"]
+                "distance_km": row["distance_km"]
             }
             
             # 获取骑行时间
@@ -444,6 +478,227 @@ def find_best_job(
             else:
                 # 如果没有有效经纬度，设置为默认值
                 job_dict["bicycling_duration_minutes"] = 0
+            
+            result.append(job_dict)
+        
+        return result
+        
+    except sqlite3.Error as e:
+        return [{"error": f"数据库错误: {e}"}]
+    except Exception as e:
+        return [{"error": f"查询过程中发生错误: {e}"}]
+
+@mcp.tool()
+def search_job_by_unit_type(
+    recruiting_unit: Optional[str] = None,
+    job_type: Optional[str] = None,
+    user_latitude: Optional[float] = None,
+    user_longitude: Optional[float] = None,
+    k: int = 100
+) -> List[Dict[str, Any]]:
+    """
+    根据招聘单位和岗位类型在job_positions表中搜索对应岗位的详细信息。
+    支持模糊搜索，可以单独或组合使用搜索条件。
+    
+    Args:
+        recruiting_unit (Optional[str]): 招聘单位名称，支持部分匹配（模糊搜索）
+        job_type (Optional[str]): 岗位类型名称，支持部分匹配（模糊搜索）
+        user_latitude (Optional[float]): 用户所在位置的纬度（可选，用于计算距离）
+        user_longitude (Optional[float]): 用户所在位置的经度（可选，用于计算距离）
+        k (int): 返回的最大岗位数量，默认100个
+    
+    Returns:
+        List[Dict[str, Any]]: 搜索到的岗位列表，每个字典包含：
+            - job_type (str): 岗位类型
+            - recruiting_unit (str): 招聘单位
+            - city (str): 城市
+            - gender (str): 性别要求
+            - age_requirement (str): 年龄要求
+            - special_requirements (str): 特殊要求
+            - accept_criminal_record (str): 是否接受有犯罪记录
+            - location (str): 位置
+            - longitude (float): 岗位经度坐标
+            - latitude (float): 岗位纬度坐标
+            - urgent_capacity (int): 运力紧急情况（1表示紧急，0表示普通）
+            - working_hours (str): 工作时间
+            - relevant_experience (str): 相关经验
+            - full_time (str): 全职
+            - salary (str): 薪资
+            - job_content (str): 工作内容
+            - interview_time (str): 面试时间
+            - trial_time (str): 试岗时间
+            - currently_recruiting (str): 当前是否招聘
+            - insurance_status (str): 保险情况
+            - accommodation_status (str): 吃住情况
+            - distance_km (float): 距离用户的公里数（如果提供用户坐标）
+            - bicycling_duration_minutes (int): 骑行时间（分钟，如果提供用户坐标）
+    """
+    try:
+        # 验证输入参数
+        if not recruiting_unit and not job_type:
+            return [{"error": "请至少提供招聘单位或岗位类型中的一个搜索条件"}]
+        
+        conn = get_db_connection()
+        
+        # 检查job_positions表是否存在
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='job_positions'")
+        table_exists = cursor.fetchone()
+        if not table_exists:
+            conn.close()
+            return [{"error": "job_positions表不存在，请先运行数据库初始化"}]
+        
+        # 构建搜索条件
+        where_conditions = ["currently_recruiting = '是'"]
+        params = []
+        
+        # 添加招聘单位模糊搜索条件
+        if recruiting_unit:
+            where_conditions.append("recruiting_unit LIKE ?")
+            params.append(f"%{recruiting_unit}%")
+        
+        # 添加岗位类型模糊搜索条件
+        if job_type:
+            where_conditions.append("job_type LIKE ?")
+            params.append(f"%{job_type}%")
+        
+        # 确定是否需要计算距离
+        calculate_distance = user_latitude is not None and user_longitude is not None
+        
+        if calculate_distance:
+            # 注册距离计算函数
+            conn.create_function("haversine", 4, haversine_distance)
+            
+            # 包含距离计算的查询
+            query = f"""
+            SELECT 
+                job_type,
+                recruiting_unit,
+                city,
+                gender,
+                age_requirement,
+                special_requirements,
+                accept_criminal_record,
+                location,
+                longitude,
+                latitude,
+                urgent_capacity,
+                working_hours,
+                relevant_experience,
+                full_time,
+                salary,
+                job_content,
+                interview_time,
+                trial_time,
+                currently_recruiting,
+                insurance_status,
+                accommodation_status,
+                ROUND(haversine(?, ?, longitude, latitude), 2) as distance_km
+            FROM 
+                job_positions
+            WHERE 
+                {' AND '.join(where_conditions)}
+                AND longitude IS NOT NULL 
+                AND latitude IS NOT NULL
+            ORDER BY 
+                urgent_capacity DESC,
+                distance_km ASC
+            LIMIT ?
+            """
+            # 将用户坐标添加到参数列表开头
+            query_params = [user_longitude, user_latitude] + params + [k]
+        else:
+            # 不计算距离的查询
+            query = f"""
+            SELECT 
+                job_type,
+                recruiting_unit,
+                city,
+                gender,
+                age_requirement,
+                special_requirements,
+                accept_criminal_record,
+                location,
+                longitude,
+                latitude,
+                urgent_capacity,
+                working_hours,
+                relevant_experience,
+                full_time,
+                salary,
+                job_content,
+                interview_time,
+                trial_time,
+                currently_recruiting,
+                insurance_status,
+                accommodation_status
+            FROM 
+                job_positions
+            WHERE 
+                {' AND '.join(where_conditions)}
+            ORDER BY 
+                urgent_capacity DESC,
+                job_type ASC,
+                recruiting_unit ASC
+            LIMIT ?
+            """
+            query_params = params + [k]
+        
+        cursor.execute(query, query_params)
+        rows = cursor.fetchall()
+        conn.close()
+        
+        # 格式化结果
+        result = []
+        for row in rows:
+            job_dict = {
+                "job_type": row["job_type"],
+                "recruiting_unit": row["recruiting_unit"],
+                "city": row["city"],
+                "gender": row["gender"],
+                "age_requirement": row["age_requirement"],
+                "special_requirements": row["special_requirements"],
+                "accept_criminal_record": row["accept_criminal_record"],
+                "location": row["location"],
+                "longitude": row["longitude"],
+                "latitude": row["latitude"],
+                "urgent_capacity": row["urgent_capacity"],
+                "working_hours": row["working_hours"],
+                "relevant_experience": row["relevant_experience"],
+                "full_time": row["full_time"],
+                "salary": row["salary"],
+                "job_content": row["job_content"],
+                "interview_time": row["interview_time"],
+                "trial_time": row["trial_time"],
+                "currently_recruiting": row["currently_recruiting"],
+                "insurance_status": row["insurance_status"],
+                "accommodation_status": row["accommodation_status"]
+            }
+            
+            # 如果计算了距离，添加距离字段
+            if calculate_distance:
+                job_dict["distance_km"] = row["distance_km"]
+                
+                # 获取骑行时间
+                if row["longitude"] and row["latitude"]:
+                    bicycling_info = get_bicycling_duration(
+                        user_longitude, user_latitude,
+                        row["longitude"], row["latitude"]
+                    )
+                    
+                    if "error" not in bicycling_info:
+                        job_dict["bicycling_duration_minutes"] = bicycling_info.get("duration_minutes", 0)
+                    else:
+                        # 如果API调用失败，设置为默认值
+                        job_dict["bicycling_duration_minutes"] = 0
+                        print(f"获取骑行时间失败: {bicycling_info.get('error', '未知错误')}")
+                else:
+                    # 如果没有有效经纬度，设置为默认值
+                    job_dict["bicycling_duration_minutes"] = 0
+            else:
+                # 如果没有用户坐标，设置距离相关字段为默认值
+                job_dict["distance_km"] = None
+                job_dict["bicycling_duration_minutes"] = None
             
             result.append(job_dict)
         
