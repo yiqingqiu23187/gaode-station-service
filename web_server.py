@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Web服务器 - 为H5控制面板提供API接口
-提供站点数据的CRUD操作
+提供岗位属性数据的CRUD操作
 """
 
 from flask import Flask, jsonify, request, render_template_string
@@ -26,186 +26,109 @@ def get_db_connection():
 
 @app.route('/')
 def index():
-    """返回控制面板页面"""
+    """返回岗位管理控制面板页面"""
     return render_template_string(HTML_TEMPLATE)
 
-def parse_demand_info(demand_info_str):
-    """解析需求信息字符串，提取各个岗位的数量"""
-    demand_data = {
-        'fulltime_total': '0',
-        'sorter': '0',
-        'day_handler': '0',
-        'aquatic_specialist': '0',
-        'night_handler': '0',
-        'deputy_manager': '0',
-        'senior_deputy_manager': '0',
-        'parttime_total': '0',
-        'parttime_sorter': '0',
-        'parttime_day_handler': '0',
-        'parttime_night_handler': '0',
-        'parttime_aquatic_specialist': '0'
-    }
-
-    if not demand_info_str:
-        return demand_data
-
-    # 解析字符串，格式如: "全职总计: 8, 分拣员: 5.0, 白班理货: 0, ..."
-    items = demand_info_str.split(', ')
-    for item in items:
-        if ':' in item:
-            key, value = item.split(':', 1)
-            key = key.strip()
-            value = value.strip()
-
-            # 映射中文字段名到英文字段名
-            field_mapping = {
-                '全职总计': 'fulltime_total',
-                '分拣员': 'sorter',
-                '白班理货': 'day_handler',
-                '水产专员': 'aquatic_specialist',
-                '夜班理货': 'night_handler',
-                '副站长': 'deputy_manager',
-                '资深副站长': 'senior_deputy_manager',
-                '兼职总计': 'parttime_total',
-                '兼职-分拣员': 'parttime_sorter',
-                '兼职-白班理货': 'parttime_day_handler',
-                '兼职-夜班理货': 'parttime_night_handler',
-                '兼职-水产专员': 'parttime_aquatic_specialist'
-            }
-
-            if key in field_mapping:
-                demand_data[field_mapping[key]] = value
-
-    return demand_data
-
-def build_demand_info_string(demand_data):
-    """根据需求数据构建需求信息字符串"""
-    field_mapping = {
-        'fulltime_total': '全职总计',
-        'sorter': '分拣员',
-        'day_handler': '白班理货',
-        'aquatic_specialist': '水产专员',
-        'night_handler': '夜班理货',
-        'deputy_manager': '副站长',
-        'senior_deputy_manager': '资深副站长',
-        'parttime_total': '兼职总计',
-        'parttime_sorter': '兼职-分拣员',
-        'parttime_day_handler': '兼职-白班理货',
-        'parttime_night_handler': '兼职-夜班理货',
-        'parttime_aquatic_specialist': '兼职-水产专员'
-    }
-
-    items = []
-    for field, chinese_name in field_mapping.items():
-        value = demand_data.get(field, '0')
-        items.append(f"{chinese_name}: {value}")
-
-    return ', '.join(items)
-
-@app.route('/api/stations', methods=['GET'])
-def get_all_stations():
-    """获取所有站点数据"""
+@app.route('/api/jobs', methods=['GET'])
+def get_jobs():
+    """获取所有岗位数据"""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM stations ORDER BY id")
-        raw_stations = [dict(row) for row in cursor.fetchall()]
+        
+        cursor.execute("""
+            SELECT 
+                id, job_type, recruiting_unit, city, gender, age_requirement,
+                special_requirements, accept_criminal_record, location, 
+                longitude, latitude, urgent_capacity, working_hours,
+                relevant_experience, full_time, salary, job_content,
+                interview_time, trial_time, currently_recruiting,
+                insurance_status, accommodation_status
+            FROM job_positions 
+            ORDER BY id
+        """)
+        
+        rows = cursor.fetchall()
         conn.close()
-
-        # 处理每个站点数据，解析需求信息
-        stations = []
-        for station in raw_stations:
-            # 解析需求信息
-            demand_data = parse_demand_info(station.get('demand_info_str', ''))
-
-            # 合并站点基本信息和解析后的需求信息
-            processed_station = {
-                'id': station['id'],
-                'station_name': station['station_name'],
-                'address': station['address'],
-                'longitude': station['longitude'],
-                'latitude': station['latitude'],
-                'manager_name': station['manager_name'],
-                'contact_phone': station['contact_phone'],
-                'interview_location': station['interview_location'],
-                'interview_contact_person': station['interview_contact_person'],
-                'interview_contact_phone': station['interview_contact_phone'],
-                # 不包含 site_info_str，添加解析后的需求字段
-                **demand_data
+        
+        # 转换为字典列表
+        jobs = []
+        for row in rows:
+            job_dict = {
+                'id': row['id'],
+                'job_type': row['job_type'],
+                'recruiting_unit': row['recruiting_unit'],
+                'city': row['city'],
+                'gender': row['gender'],
+                'age_requirement': row['age_requirement'],
+                'special_requirements': row['special_requirements'],
+                'accept_criminal_record': row['accept_criminal_record'],
+                'location': row['location'],
+                'longitude': row['longitude'],
+                'latitude': row['latitude'],
+                'urgent_capacity': row['urgent_capacity'],
+                'working_hours': row['working_hours'],
+                'relevant_experience': row['relevant_experience'],
+                'full_time': row['full_time'],
+                'salary': row['salary'],
+                'job_content': row['job_content'],
+                'interview_time': row['interview_time'],
+                'trial_time': row['trial_time'],
+                'currently_recruiting': row['currently_recruiting'],
+                'insurance_status': row['insurance_status'],
+                'accommodation_status': row['accommodation_status']
             }
-            stations.append(processed_station)
-
+            jobs.append(job_dict)
+        
         return jsonify({
             'success': True,
-            'data': stations,
-            'total': len(stations)
+            'data': jobs,
+            'count': len(jobs)
         })
+        
     except sqlite3.Error as e:
         return jsonify({
             'success': False,
-            'error': f'数据库错误: {str(e)}'
+            'error': f'数据库错误: {e}'
+        }), 500
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'服务器错误: {e}'
         }), 500
 
-@app.route('/api/stations/<int:station_id>', methods=['PUT'])
-def update_station(station_id):
-    """更新单个站点数据"""
+@app.route('/api/jobs/<int:job_id>', methods=['PUT'])
+def update_job(job_id):
+    """更新单个岗位信息"""
     try:
         data = request.get_json()
         if not data:
             return jsonify({
                 'success': False,
-                'error': '无效的JSON数据'
+                'error': '没有提供数据'
             }), 400
         
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # 构建更新SQL语句
+        # 构建更新SQL
         update_fields = []
-        values = []
+        params = []
         
-        # 允许更新的基本字段
-        basic_fields = [
-            'station_name', 'address', 'longitude', 'latitude',
-            'manager_name', 'contact_phone', 'interview_location',
-            'interview_contact_person', 'interview_contact_phone'
+        # 定义可更新的字段
+        updatable_fields = [
+            'job_type', 'recruiting_unit', 'city', 'gender', 'age_requirement',
+            'special_requirements', 'accept_criminal_record', 'location',
+            'longitude', 'latitude', 'urgent_capacity', 'working_hours',
+            'relevant_experience', 'full_time', 'salary', 'job_content',
+            'interview_time', 'trial_time', 'currently_recruiting',
+            'insurance_status', 'accommodation_status'
         ]
-
-        # 需求信息字段
-        demand_fields = [
-            'fulltime_total', 'sorter', 'day_handler', 'aquatic_specialist',
-            'night_handler', 'deputy_manager', 'senior_deputy_manager',
-            'parttime_total', 'parttime_sorter', 'parttime_day_handler',
-            'parttime_night_handler', 'parttime_aquatic_specialist'
-        ]
-
-        # 处理基本字段
-        for field in basic_fields:
+        
+        for field in updatable_fields:
             if field in data:
                 update_fields.append(f"{field} = ?")
-                values.append(data[field])
-
-        # 处理需求信息字段
-        demand_data = {}
-        has_demand_updates = False
-        for field in demand_fields:
-            if field in data:
-                demand_data[field] = data[field]
-                has_demand_updates = True
-
-        # 如果有需求信息更新，需要重新构建demand_info_str
-        if has_demand_updates:
-            # 先获取当前记录的需求信息
-            cursor.execute("SELECT demand_info_str FROM stations WHERE id = ?", (station_id,))
-            current_row = cursor.fetchone()
-            if current_row:
-                current_demand = parse_demand_info(current_row['demand_info_str'])
-                # 更新修改的字段
-                current_demand.update(demand_data)
-                # 重新构建字符串
-                new_demand_str = build_demand_info_string(current_demand)
-                update_fields.append("demand_info_str = ?")
-                values.append(new_demand_str)
+                params.append(data[field])
         
         if not update_fields:
             return jsonify({
@@ -213,168 +136,131 @@ def update_station(station_id):
                 'error': '没有提供有效的更新字段'
             }), 400
         
-        values.append(station_id)
-        sql = f"UPDATE stations SET {', '.join(update_fields)} WHERE id = ?"
+        params.append(job_id)
         
-        cursor.execute(sql, values)
+        update_sql = f"""
+            UPDATE job_positions 
+            SET {', '.join(update_fields)}
+            WHERE id = ?
+        """
+        
+        cursor.execute(update_sql, params)
+        conn.commit()
         
         if cursor.rowcount == 0:
             conn.close()
             return jsonify({
                 'success': False,
-                'error': f'未找到ID为{station_id}的站点'
+                'error': f'未找到ID为{job_id}的岗位'
             }), 404
         
-        conn.commit()
         conn.close()
         
         return jsonify({
             'success': True,
-            'message': f'站点ID {station_id} 更新成功'
+            'message': f'岗位 {job_id} 更新成功'
         })
         
     except sqlite3.Error as e:
         return jsonify({
             'success': False,
-            'error': f'数据库错误: {str(e)}'
+            'error': f'数据库错误: {e}'
         }), 500
     except Exception as e:
         return jsonify({
             'success': False,
-            'error': f'服务器错误: {str(e)}'
+            'error': f'服务器错误: {e}'
         }), 500
 
-@app.route('/api/stations/batch', methods=['PUT'])
-def batch_update_stations():
-    """批量更新站点数据"""
+@app.route('/api/jobs/batch', methods=['PUT'])
+def batch_update_jobs():
+    """批量更新岗位信息"""
     try:
         data = request.get_json()
         if not data or 'updates' not in data:
             return jsonify({
                 'success': False,
-                'error': '无效的JSON数据格式'
+                'error': '没有提供更新数据'
             }), 400
         
         updates = data['updates']
-        if not isinstance(updates, list):
+        if not isinstance(updates, list) or len(updates) == 0:
             return jsonify({
                 'success': False,
-                'error': 'updates必须是数组格式'
+                'error': '更新数据格式不正确'
             }), 400
         
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        success_count = 0
-        error_count = 0
-        errors = []
+        updated_count = 0
         
-        # 允许更新的基本字段
-        basic_fields = [
-            'station_name', 'address', 'longitude', 'latitude',
-            'manager_name', 'contact_phone', 'interview_location',
-            'interview_contact_person', 'interview_contact_phone'
+        # 定义可更新的字段
+        updatable_fields = [
+            'job_type', 'recruiting_unit', 'city', 'gender', 'age_requirement',
+            'special_requirements', 'accept_criminal_record', 'location',
+            'longitude', 'latitude', 'urgent_capacity', 'working_hours',
+            'relevant_experience', 'full_time', 'salary', 'job_content',
+            'interview_time', 'trial_time', 'currently_recruiting',
+            'insurance_status', 'accommodation_status'
         ]
-
-        # 需求信息字段
-        demand_fields = [
-            'fulltime_total', 'sorter', 'day_handler', 'aquatic_specialist',
-            'night_handler', 'deputy_manager', 'senior_deputy_manager',
-            'parttime_total', 'parttime_sorter', 'parttime_day_handler',
-            'parttime_night_handler', 'parttime_aquatic_specialist'
-        ]
-
+        
         for update_item in updates:
-            try:
-                if 'id' not in update_item:
-                    error_count += 1
-                    errors.append('缺少站点ID')
-                    continue
-
-                station_id = update_item['id']
-
-                # 构建更新SQL语句
-                update_fields = []
-                values = []
-
-                # 处理基本字段
-                for field in basic_fields:
-                    if field in update_item:
-                        update_fields.append(f"{field} = ?")
-                        values.append(update_item[field])
-
-                # 处理需求信息字段
-                demand_data = {}
-                has_demand_updates = False
-                for field in demand_fields:
-                    if field in update_item:
-                        demand_data[field] = update_item[field]
-                        has_demand_updates = True
-
-                # 如果有需求信息更新，需要重新构建demand_info_str
-                if has_demand_updates:
-                    # 先获取当前记录的需求信息
-                    cursor.execute("SELECT demand_info_str FROM stations WHERE id = ?", (station_id,))
-                    current_row = cursor.fetchone()
-                    if current_row:
-                        current_demand = parse_demand_info(current_row['demand_info_str'])
-                        # 更新修改的字段
-                        current_demand.update(demand_data)
-                        # 重新构建字符串
-                        new_demand_str = build_demand_info_string(current_demand)
-                        update_fields.append("demand_info_str = ?")
-                        values.append(new_demand_str)
+            if 'id' not in update_item:
+                continue
+            
+            job_id = update_item['id']
+            
+            # 构建更新SQL
+            update_fields = []
+            params = []
+            
+            for field in updatable_fields:
+                if field in update_item:
+                    update_fields.append(f"{field} = ?")
+                    params.append(update_item[field])
+            
+            if update_fields:
+                params.append(job_id)
                 
-                if not update_fields:
-                    error_count += 1
-                    errors.append(f'站点ID {station_id}: 没有提供有效的更新字段')
-                    continue
+                update_sql = f"""
+                    UPDATE job_positions 
+                    SET {', '.join(update_fields)}
+                    WHERE id = ?
+                """
                 
-                values.append(station_id)
-                sql = f"UPDATE stations SET {', '.join(update_fields)} WHERE id = ?"
-                
-                cursor.execute(sql, values)
-                
-                if cursor.rowcount == 0:
-                    error_count += 1
-                    errors.append(f'未找到ID为{station_id}的站点')
-                else:
-                    success_count += 1
-                    
-            except Exception as e:
-                error_count += 1
-                errors.append(f'处理站点更新时出错: {str(e)}')
+                cursor.execute(update_sql, params)
+                if cursor.rowcount > 0:
+                    updated_count += 1
         
         conn.commit()
         conn.close()
         
         return jsonify({
             'success': True,
-            'message': f'批量更新完成: 成功{success_count}条，失败{error_count}条',
-            'success_count': success_count,
-            'error_count': error_count,
-            'errors': errors
+            'message': f'成功更新 {updated_count} 个岗位',
+            'updated_count': updated_count
         })
         
     except sqlite3.Error as e:
         return jsonify({
             'success': False,
-            'error': f'数据库错误: {str(e)}'
+            'error': f'数据库错误: {e}'
         }), 500
     except Exception as e:
         return jsonify({
             'success': False,
-            'error': f'服务器错误: {str(e)}'
+            'error': f'服务器错误: {e}'
         }), 500
 
-# HTML模板 - 完整的H5控制面板
+# HTML模板 - 完整的H5岗位管理控制面板
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>站点管理控制面板</title>
+    <title>岗位管理控制面板</title>
     <style>
         * {
             margin: 0;
@@ -486,13 +372,13 @@ HTML_TEMPLATE = """
         table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 13px;
+            font-size: 12px;
         }
 
         th {
             background-color: #4a90e2;
             color: white;
-            padding: 14px 10px;
+            padding: 10px 8px;
             text-align: left;
             font-weight: 600;
             position: sticky;
@@ -500,10 +386,11 @@ HTML_TEMPLATE = """
             z-index: 10;
             white-space: nowrap;
             border-bottom: 2px solid #357abd;
+            font-size: 11px;
         }
 
         td {
-            padding: 12px 10px;
+            padding: 8px 6px;
             border-bottom: 1px solid #e9ecef;
             vertical-align: top;
         }
@@ -523,7 +410,22 @@ HTML_TEMPLATE = """
             border-radius: 3px;
             width: 100%;
             min-width: 80px;
-            font-size: 13px;
+            font-size: 11px;
+            font-family: inherit;
+            resize: vertical;
+        }
+        
+        .editable[type="text"], .editable[type="number"] {
+            min-width: 100px;
+        }
+        
+        .editable textarea {
+            min-height: 50px;
+            min-width: 150px;
+        }
+        
+        .editable select {
+            min-width: 80px;
         }
 
         .editable:focus {
@@ -598,7 +500,7 @@ HTML_TEMPLATE = """
             }
 
             .header h1 {
-                font-size: 1.5rem;
+                font-size: 1.2rem;
             }
 
             .controls {
@@ -610,11 +512,11 @@ HTML_TEMPLATE = """
             }
 
             table {
-                font-size: 12px;
+                font-size: 10px;
             }
 
             th, td {
-                padding: 8px 4px;
+                padding: 6px 4px;
             }
         }
     </style>
@@ -622,7 +524,7 @@ HTML_TEMPLATE = """
 <body>
     <div class="container">
         <div class="header">
-            <h1>站点管理控制面板</h1>
+            <h1>岗位管理控制面板</h1>
         </div>
 
         <div class="controls">
@@ -642,27 +544,27 @@ HTML_TEMPLATE = """
                     <thead>
                         <tr>
                             <th>ID</th>
-                            <th>站点名称</th>
-                            <th>地址</th>
+                            <th>岗位类型</th>
+                            <th>招聘单位</th>
+                            <th>城市</th>
+                            <th>性别要求</th>
+                            <th>年龄要求</th>
+                            <th>特殊要求</th>
+                            <th>接受犯罪记录</th>
+                            <th>工作地点</th>
                             <th>经度</th>
                             <th>纬度</th>
-                            <th>站长姓名</th>
-                            <th>联系电话</th>
-                            <th>面试地点</th>
-                            <th>面试联系人</th>
-                            <th>面试联系电话</th>
-                            <th>全职总计</th>
-                            <th>分拣员</th>
-                            <th>白班理货</th>
-                            <th>水产专员</th>
-                            <th>夜班理货</th>
-                            <th>副站长</th>
-                            <th>资深副站长</th>
-                            <th>兼职总计</th>
-                            <th>兼职-分拣员</th>
-                            <th>兼职-白班理货</th>
-                            <th>兼职-夜班理货</th>
-                            <th>兼职-水产专员</th>
+                            <th>紧急程度</th>
+                            <th>工作时间</th>
+                            <th>相关经验</th>
+                            <th>全职</th>
+                            <th>薪资</th>
+                            <th>工作内容</th>
+                            <th>面试时间</th>
+                            <th>试岗时间</th>
+                            <th>当前招聘</th>
+                            <th>保险情况</th>
+                            <th>吃住情况</th>
                         </tr>
                     </thead>
                     <tbody id="tableBody">
@@ -677,7 +579,7 @@ HTML_TEMPLATE = """
     </div>
 
     <script>
-        class StationManager {
+        class JobManager {
             constructor() {
                 this.originalData = [];
                 this.currentData = [];
@@ -707,7 +609,7 @@ HTML_TEMPLATE = """
             async loadData() {
                 try {
                     this.showLoading(true);
-                    const response = await fetch('/api/stations');
+                    const response = await fetch('/api/jobs');
                     const result = await response.json();
 
                     if (result.success) {
@@ -734,36 +636,59 @@ HTML_TEMPLATE = """
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
                         <td>${row.id}</td>
-                        <td><input type="text" class="editable" data-field="station_name" data-index="${index}" value="${this.escapeHtml(row.station_name || '')}"></td>
-                        <td><input type="text" class="editable" data-field="address" data-index="${index}" value="${this.escapeHtml(row.address || '')}"></td>
+                        <td><input type="text" class="editable" data-field="job_type" data-index="${index}" value="${this.escapeHtml(row.job_type || '')}"></td>
+                        <td><input type="text" class="editable" data-field="recruiting_unit" data-index="${index}" value="${this.escapeHtml(row.recruiting_unit || '')}"></td>
+                        <td><input type="text" class="editable" data-field="city" data-index="${index}" value="${this.escapeHtml(row.city || '')}"></td>
+                        <td><select class="editable" data-field="gender" data-index="${index}">
+                            <option value="男" ${row.gender === '男' ? 'selected' : ''}>男</option>
+                            <option value="女" ${row.gender === '女' ? 'selected' : ''}>女</option>
+                            <option value="不限" ${row.gender === '不限' ? 'selected' : ''}>不限</option>
+                        </select></td>
+                        <td><input type="text" class="editable" data-field="age_requirement" data-index="${index}" value="${this.escapeHtml(row.age_requirement || '')}"></td>
+                        <td><textarea class="editable" data-field="special_requirements" data-index="${index}" rows="2">${this.escapeHtml(row.special_requirements || '')}</textarea></td>
+                        <td><select class="editable" data-field="accept_criminal_record" data-index="${index}">
+                            <option value="是" ${row.accept_criminal_record === '是' ? 'selected' : ''}>是</option>
+                            <option value="否" ${row.accept_criminal_record === '否' ? 'selected' : ''}>否</option>
+                        </select></td>
+                        <td><textarea class="editable" data-field="location" data-index="${index}" rows="2">${this.escapeHtml(row.location || '')}</textarea></td>
                         <td><input type="number" step="any" class="editable" data-field="longitude" data-index="${index}" value="${row.longitude || ''}"></td>
                         <td><input type="number" step="any" class="editable" data-field="latitude" data-index="${index}" value="${row.latitude || ''}"></td>
-                        <td><input type="text" class="editable" data-field="manager_name" data-index="${index}" value="${this.escapeHtml(row.manager_name || '')}"></td>
-                        <td><input type="text" class="editable" data-field="contact_phone" data-index="${index}" value="${this.escapeHtml(row.contact_phone || '')}"></td>
-                        <td><input type="text" class="editable" data-field="interview_location" data-index="${index}" value="${this.escapeHtml(row.interview_location || '')}"></td>
-                        <td><input type="text" class="editable" data-field="interview_contact_person" data-index="${index}" value="${this.escapeHtml(row.interview_contact_person || '')}"></td>
-                        <td><input type="text" class="editable" data-field="interview_contact_phone" data-index="${index}" value="${this.escapeHtml(row.interview_contact_phone || '')}"></td>
-                        <td><input type="number" class="editable" data-field="fulltime_total" data-index="${index}" value="${row.fulltime_total || '0'}"></td>
-                        <td><input type="number" class="editable" data-field="sorter" data-index="${index}" value="${row.sorter || '0'}"></td>
-                        <td><input type="number" class="editable" data-field="day_handler" data-index="${index}" value="${row.day_handler || '0'}"></td>
-                        <td><input type="number" class="editable" data-field="aquatic_specialist" data-index="${index}" value="${row.aquatic_specialist || '0'}"></td>
-                        <td><input type="number" class="editable" data-field="night_handler" data-index="${index}" value="${row.night_handler || '0'}"></td>
-                        <td><input type="number" class="editable" data-field="deputy_manager" data-index="${index}" value="${row.deputy_manager || '0'}"></td>
-                        <td><input type="number" class="editable" data-field="senior_deputy_manager" data-index="${index}" value="${row.senior_deputy_manager || '0'}"></td>
-                        <td><input type="number" class="editable" data-field="parttime_total" data-index="${index}" value="${row.parttime_total || '0'}"></td>
-                        <td><input type="number" class="editable" data-field="parttime_sorter" data-index="${index}" value="${row.parttime_sorter || '0'}"></td>
-                        <td><input type="number" class="editable" data-field="parttime_day_handler" data-index="${index}" value="${row.parttime_day_handler || '0'}"></td>
-                        <td><input type="number" class="editable" data-field="parttime_night_handler" data-index="${index}" value="${row.parttime_night_handler || '0'}"></td>
-                        <td><input type="number" class="editable" data-field="parttime_aquatic_specialist" data-index="${index}" value="${row.parttime_aquatic_specialist || '0'}"></td>
+                        <td><select class="editable" data-field="urgent_capacity" data-index="${index}">
+                            <option value="0" ${row.urgent_capacity === 0 ? 'selected' : ''}>普通</option>
+                            <option value="1" ${row.urgent_capacity === 1 ? 'selected' : ''}>紧急</option>
+                        </select></td>
+                        <td><textarea class="editable" data-field="working_hours" data-index="${index}" rows="2">${this.escapeHtml(row.working_hours || '')}</textarea></td>
+                        <td><input type="text" class="editable" data-field="relevant_experience" data-index="${index}" value="${this.escapeHtml(row.relevant_experience || '')}"></td>
+                        <td><select class="editable" data-field="full_time" data-index="${index}">
+                            <option value="是" ${row.full_time === '是' ? 'selected' : ''}>是</option>
+                            <option value="否" ${row.full_time === '否' ? 'selected' : ''}>否</option>
+                        </select></td>
+                        <td><textarea class="editable" data-field="salary" data-index="${index}" rows="2">${this.escapeHtml(row.salary || '')}</textarea></td>
+                        <td><textarea class="editable" data-field="job_content" data-index="${index}" rows="3">${this.escapeHtml(row.job_content || '')}</textarea></td>
+                        <td><input type="text" class="editable" data-field="interview_time" data-index="${index}" value="${this.escapeHtml(row.interview_time || '')}"></td>
+                        <td><input type="text" class="editable" data-field="trial_time" data-index="${index}" value="${this.escapeHtml(row.trial_time || '')}"></td>
+                        <td><select class="editable" data-field="currently_recruiting" data-index="${index}">
+                            <option value="是" ${row.currently_recruiting === '是' ? 'selected' : ''}>是</option>
+                            <option value="否" ${row.currently_recruiting === '否' ? 'selected' : ''}>否</option>
+                        </select></td>
+                        <td><input type="text" class="editable" data-field="insurance_status" data-index="${index}" value="${this.escapeHtml(row.insurance_status || '')}"></td>
+                        <td><input type="text" class="editable" data-field="accommodation_status" data-index="${index}" value="${this.escapeHtml(row.accommodation_status || '')}"></td>
                     `;
                     tbody.appendChild(tr);
                 });
 
                 // 绑定输入事件
-                document.querySelectorAll('.editable').forEach(input => {
-                    input.addEventListener('input', (e) => {
-                        this.handleInputChange(e);
-                    });
+                document.querySelectorAll('.editable').forEach(element => {
+                    // 为不同类型的元素绑定合适的事件
+                    if (element.tagName === 'SELECT') {
+                        element.addEventListener('change', (e) => {
+                            this.handleInputChange(e);
+                        });
+                    } else {
+                        element.addEventListener('input', (e) => {
+                            this.handleInputChange(e);
+                        });
+                    }
                 });
 
                 document.getElementById('dataTable').style.display = 'table';
@@ -799,12 +724,12 @@ HTML_TEMPLATE = """
 
             checkRowModifications(index) {
                 const fields = [
-                    'station_name', 'address', 'longitude', 'latitude', 'manager_name',
-                    'contact_phone', 'interview_location', 'interview_contact_person',
-                    'interview_contact_phone', 'fulltime_total', 'sorter', 'day_handler',
-                    'aquatic_specialist', 'night_handler', 'deputy_manager', 'senior_deputy_manager',
-                    'parttime_total', 'parttime_sorter', 'parttime_day_handler',
-                    'parttime_night_handler', 'parttime_aquatic_specialist'
+                    'job_type', 'recruiting_unit', 'city', 'gender', 'age_requirement',
+                    'special_requirements', 'accept_criminal_record', 'location',
+                    'longitude', 'latitude', 'urgent_capacity', 'working_hours',
+                    'relevant_experience', 'full_time', 'salary', 'job_content',
+                    'interview_time', 'trial_time', 'currently_recruiting',
+                    'insurance_status', 'accommodation_status'
                 ];
 
                 return fields.some(field => {
@@ -830,7 +755,7 @@ HTML_TEMPLATE = """
                         };
                     });
 
-                    const response = await fetch('/api/stations/batch', {
+                    const response = await fetch('/api/jobs/batch', {
                         method: 'PUT',
                         headers: {
                             'Content-Type': 'application/json'
@@ -891,7 +816,7 @@ HTML_TEMPLATE = """
 
         // 页面加载完成后初始化
         document.addEventListener('DOMContentLoaded', () => {
-            new StationManager();
+            new JobManager();
         });
     </script>
 </body>
@@ -901,12 +826,12 @@ HTML_TEMPLATE = """
 if __name__ == '__main__':
     # 检查数据库文件是否存在
     if not os.path.exists(DB_FILE):
-        print(f"错误: 数据库文件 {DB_FILE} 不存在")
+        print(f"错误: 数据库文件不存在: {DB_FILE}")
         print("请先运行 database_setup.py 创建数据库")
         exit(1)
     
-    print(f"启动Web服务器...")
+    print(f"启动岗位管理Web服务器...")
     print(f"数据库文件: {DB_FILE}")
     print(f"访问地址: http://localhost:5000")
     
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(debug=True, host='0.0.0.0', port=5000)
