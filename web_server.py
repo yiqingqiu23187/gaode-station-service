@@ -97,6 +97,186 @@ def get_jobs():
             'error': f'服务器错误: {e}'
         }), 500
 
+@app.route('/api/jobs', methods=['POST'])
+def create_job():
+    """创建新岗位"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': '没有提供数据'
+            }), 400
+        
+        # 验证必填字段
+        required_fields = ['job_type', 'recruiting_unit']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({
+                    'success': False,
+                    'error': f'缺少必填字段: {field}'
+                }), 400
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # 定义所有字段
+        all_fields = [
+            'job_type', 'recruiting_unit', 'city', 'gender', 'age_requirement',
+            'special_requirements', 'accept_criminal_record', 'location',
+            'longitude', 'latitude', 'urgent_capacity', 'working_hours',
+            'relevant_experience', 'full_time', 'salary', 'job_content',
+            'interview_time', 'trial_time', 'currently_recruiting',
+            'insurance_status', 'accommodation_status'
+        ]
+        
+        # 构建插入SQL
+        insert_fields = []
+        placeholders = []
+        values = []
+        
+        for field in all_fields:
+            insert_fields.append(field)
+            placeholders.append('?')
+            # 设置默认值
+            if field == 'currently_recruiting':
+                values.append(data.get(field, '是'))
+            elif field == 'urgent_capacity':
+                values.append(data.get(field, 0))
+            elif field in ['longitude', 'latitude']:
+                values.append(data.get(field, None))
+            else:
+                values.append(data.get(field, ''))
+        
+        insert_sql = f"""
+            INSERT INTO job_positions ({', '.join(insert_fields)})
+            VALUES ({', '.join(placeholders)})
+        """
+        
+        cursor.execute(insert_sql, values)
+        new_job_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': f'成功创建新岗位，ID: {new_job_id}',
+            'job_id': new_job_id
+        })
+        
+    except sqlite3.Error as e:
+        return jsonify({
+            'success': False,
+            'error': f'数据库错误: {e}'
+        }), 500
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'服务器错误: {e}'
+        }), 500
+
+@app.route('/api/jobs/search', methods=['GET'])
+def search_jobs():
+    """搜索岗位"""
+    try:
+        # 获取搜索参数
+        recruiting_unit = request.args.get('recruiting_unit', '').strip()
+        job_type = request.args.get('job_type', '').strip()
+        city = request.args.get('city', '').strip()
+        
+        if not recruiting_unit and not job_type and not city:
+            return jsonify({
+                'success': False,
+                'error': '请提供至少一个搜索条件'
+            }), 400
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # 构建搜索条件
+        where_conditions = []
+        params = []
+        
+        if recruiting_unit:
+            where_conditions.append("recruiting_unit LIKE ?")
+            params.append(f"%{recruiting_unit}%")
+            
+        if job_type:
+            where_conditions.append("job_type LIKE ?")
+            params.append(f"%{job_type}%")
+            
+        if city:
+            where_conditions.append("city LIKE ?")
+            params.append(f"%{city}%")
+        
+        query = f"""
+            SELECT 
+                id, job_type, recruiting_unit, city, gender, age_requirement,
+                special_requirements, accept_criminal_record, location, 
+                longitude, latitude, urgent_capacity, working_hours,
+                relevant_experience, full_time, salary, job_content,
+                interview_time, trial_time, currently_recruiting,
+                insurance_status, accommodation_status
+            FROM job_positions 
+            WHERE {' AND '.join(where_conditions)}
+            ORDER BY urgent_capacity DESC, job_type ASC, recruiting_unit ASC
+        """
+        
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        conn.close()
+        
+        # 转换为字典列表
+        jobs = []
+        for row in rows:
+            job_dict = {
+                'id': row['id'],
+                'job_type': row['job_type'],
+                'recruiting_unit': row['recruiting_unit'],
+                'city': row['city'],
+                'gender': row['gender'],
+                'age_requirement': row['age_requirement'],
+                'special_requirements': row['special_requirements'],
+                'accept_criminal_record': row['accept_criminal_record'],
+                'location': row['location'],
+                'longitude': row['longitude'],
+                'latitude': row['latitude'],
+                'urgent_capacity': row['urgent_capacity'],
+                'working_hours': row['working_hours'],
+                'relevant_experience': row['relevant_experience'],
+                'full_time': row['full_time'],
+                'salary': row['salary'],
+                'job_content': row['job_content'],
+                'interview_time': row['interview_time'],
+                'trial_time': row['trial_time'],
+                'currently_recruiting': row['currently_recruiting'],
+                'insurance_status': row['insurance_status'],
+                'accommodation_status': row['accommodation_status']
+            }
+            jobs.append(job_dict)
+        
+        return jsonify({
+            'success': True,
+            'data': jobs,
+            'count': len(jobs),
+            'search_params': {
+                'recruiting_unit': recruiting_unit,
+                'job_type': job_type,
+                'city': city
+            }
+        })
+        
+    except sqlite3.Error as e:
+        return jsonify({
+            'success': False,
+            'error': f'数据库错误: {e}'
+        }), 500
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'服务器错误: {e}'
+        }), 500
+
 @app.route('/api/jobs/<int:job_id>', methods=['PUT'])
 def update_job(job_id):
     """更新单个岗位信息"""
@@ -302,10 +482,38 @@ HTML_TEMPLATE = """
 
         .controls {
             display: flex;
+            flex-direction: column;
             gap: 15px;
             margin-bottom: 20px;
+        }
+        
+        .search-section {
+            display: flex;
+            gap: 10px;
+            align-items: center;
             flex-wrap: wrap;
-            justify-content: flex-start;
+        }
+        
+        .action-section {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .search-input {
+            padding: 10px 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 6px;
+            font-size: 14px;
+            min-width: 200px;
+            flex: 1;
+            max-width: 300px;
+        }
+        
+        .search-input:focus {
+            outline: none;
+            border-color: #4a90e2;
+            box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);
         }
 
         .btn {
@@ -344,6 +552,19 @@ HTML_TEMPLATE = """
             border-color: #5a6268;
             transform: translateY(-1px);
             box-shadow: 0 4px 12px rgba(108, 117, 125, 0.3);
+        }
+
+        .btn-success {
+            background-color: #28a745;
+            color: white;
+            border: 1px solid #28a745;
+        }
+
+        .btn-success:hover {
+            background-color: #218838;
+            border-color: #218838;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
         }
 
         .btn:disabled {
@@ -503,12 +724,17 @@ HTML_TEMPLATE = """
                 font-size: 1.2rem;
             }
 
-            .controls {
+            .search-section, .action-section {
                 flex-direction: column;
             }
 
             .btn {
                 width: 100%;
+            }
+            
+            .search-input {
+                min-width: 100%;
+                max-width: 100%;
             }
 
             table {
@@ -528,9 +754,17 @@ HTML_TEMPLATE = """
         </div>
 
         <div class="controls">
-            <button id="reloadBtn" class="btn btn-secondary">🔄 刷新数据</button>
-            <button id="refreshBtn" class="btn btn-secondary">🔄 重置数据</button>
-            <button id="submitBtn" class="btn btn-primary" disabled>💾 提交修改</button>
+            <div class="search-section">
+                <input type="text" id="searchInput" placeholder="搜索招聘单位..." class="search-input">
+                <button id="searchBtn" class="btn btn-secondary">🔍 搜索</button>
+                <button id="clearSearchBtn" class="btn btn-secondary">❌ 清除</button>
+            </div>
+            <div class="action-section">
+                <button id="addJobBtn" class="btn btn-success">➕ 新增岗位</button>
+                <button id="reloadBtn" class="btn btn-secondary">🔄 刷新数据</button>
+                <button id="refreshBtn" class="btn btn-secondary">🔄 重置数据</button>
+                <button id="submitBtn" class="btn btn-primary" disabled>💾 提交修改</button>
+            </div>
         </div>
 
         <div id="messageArea"></div>
@@ -603,6 +837,25 @@ HTML_TEMPLATE = """
 
                 document.getElementById('submitBtn').addEventListener('click', () => {
                     this.submitChanges();
+                });
+                
+                document.getElementById('addJobBtn').addEventListener('click', () => {
+                    this.addNewJob();
+                });
+                
+                document.getElementById('searchBtn').addEventListener('click', () => {
+                    this.searchJobs();
+                });
+                
+                document.getElementById('clearSearchBtn').addEventListener('click', () => {
+                    this.clearSearch();
+                });
+                
+                // 搜索框回车事件
+                document.getElementById('searchInput').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        this.searchJobs();
+                    }
                 });
             }
 
@@ -805,6 +1058,89 @@ HTML_TEMPLATE = """
                 setTimeout(() => {
                     messageArea.innerHTML = '';
                 }, 5000);
+            }
+
+            async addNewJob() {
+                try {
+                    // 创建新岗位的默认数据
+                    const newJobData = {
+                        job_type: '新岗位',
+                        recruiting_unit: '请输入招聘单位',
+                        city: '',
+                        gender: '不限',
+                        age_requirement: '',
+                        special_requirements: '',
+                        accept_criminal_record: '否',
+                        location: '',
+                        longitude: null,
+                        latitude: null,
+                        urgent_capacity: 0,
+                        working_hours: '',
+                        relevant_experience: '',
+                        full_time: '是',
+                        salary: '',
+                        job_content: '',
+                        interview_time: '',
+                        trial_time: '',
+                        currently_recruiting: '是',
+                        insurance_status: '',
+                        accommodation_status: ''
+                    };
+                    
+                    const response = await fetch('/api/jobs', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(newJobData)
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        this.showMessage(`成功创建新岗位，ID: ${result.job_id}`, 'success');
+                        // 重新加载数据以显示新岗位
+                        await this.loadData();
+                    } else {
+                        throw new Error(result.error);
+                    }
+                } catch (error) {
+                    this.showMessage('创建新岗位失败: ' + error.message, 'error');
+                }
+            }
+            
+            async searchJobs() {
+                const searchTerm = document.getElementById('searchInput').value.trim();
+                if (!searchTerm) {
+                    this.showMessage('请输入搜索关键词', 'error');
+                    return;
+                }
+                
+                try {
+                    this.showLoading(true);
+                    const response = await fetch(`/api/jobs/search?recruiting_unit=${encodeURIComponent(searchTerm)}`);
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        this.originalData = result.data;
+                        this.currentData = JSON.parse(JSON.stringify(result.data));
+                        this.renderTable();
+                        this.updateStatus();
+                        this.showMessage(`搜索完成，找到 ${result.count} 个岗位`, 'success');
+                    } else {
+                        throw new Error(result.error);
+                    }
+                } catch (error) {
+                    this.showMessage('搜索失败: ' + error.message, 'error');
+                } finally {
+                    this.showLoading(false);
+                }
+            }
+            
+            clearSearch() {
+                document.getElementById('searchInput').value = '';
+                this.loadData(); // 重新加载所有数据
+                this.showMessage('已清除搜索条件', 'success');
             }
 
             escapeHtml(text) {
