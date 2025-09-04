@@ -709,6 +709,189 @@ def search_job_by_unit_type(
     except Exception as e:
         return [{"error": f"查询过程中发生错误: {e}"}]
 
+@mcp.tool()
+def get_job_by_id(
+    job_id: int,
+    user_latitude: Optional[float] = None,
+    user_longitude: Optional[float] = None
+) -> List[Dict[str, Any]]:
+    """
+    根据岗位ID进行精确岗位属性查询。
+    
+    Args:
+        job_id (int): 岗位ID，必填参数
+        user_latitude (float, optional): 用户纬度，用于计算距离和骑行时间
+        user_longitude (float, optional): 用户经度，用于计算距离和骑行时间
+    
+    Returns:
+        List[Dict[str, Any]]: 岗位详情列表，字段结构与find_best_job一致：
+            - job_type (str): 岗位类型
+            - recruiting_unit (str): 招聘单位
+            - city (str): 城市
+            - gender (str): 性别要求
+            - age_requirement (str): 年龄要求
+            - special_requirements (str): 特殊要求
+            - accept_criminal_record (str): 是否接受有犯罪记录
+            - location (str): 位置
+            - longitude (float): 岗位经度坐标
+            - latitude (float): 岗位纬度坐标
+            - urgent_capacity (int): 运力紧急情况（1表示紧急，0表示普通）
+            - working_hours (str): 工作时间
+            - relevant_experience (str): 相关经验
+            - full_time (str): 全职
+            - salary (str): 薪资
+            - job_content (str): 工作内容
+            - interview_time (str): 面试时间
+            - trial_time (str): 试岗时间
+            - currently_recruiting (str): 当前是否招聘
+            - insurance_status (str): 保险情况
+            - accommodation_status (str): 吃住情况
+            - distance_km (float or None): 距离用户的公里数（如果提供用户坐标）
+            - bicycling_duration_minutes (int or None): 骑行时间（分钟，如果提供用户坐标）
+    """
+    try:
+        conn = get_db_connection()
+        
+        # 检查job_positions表是否存在
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='job_positions'")
+        table_exists = cursor.fetchone()
+        if not table_exists:
+            conn.close()
+            return [{"error": "job_positions表不存在，请先运行数据库初始化"}]
+        
+        # 构建查询SQL
+        if user_latitude is not None and user_longitude is not None:
+            # 如果提供了用户坐标，计算距离
+            query = """
+            SELECT 
+                id,
+                job_type,
+                recruiting_unit,
+                city,
+                gender,
+                age_requirement,
+                special_requirements,
+                accept_criminal_record,
+                location,
+                longitude,
+                latitude,
+                urgent_capacity,
+                working_hours,
+                relevant_experience,
+                full_time,
+                salary,
+                job_content,
+                interview_time,
+                trial_time,
+                currently_recruiting,
+                insurance_status,
+                accommodation_status,
+                ROUND(haversine(?, ?, longitude, latitude), 2) as distance_km
+            FROM 
+                job_positions
+            WHERE 
+                id = ?
+            """
+            params = [user_longitude, user_latitude, job_id]
+        else:
+            # 不计算距离
+            query = """
+            SELECT 
+                id,
+                job_type,
+                recruiting_unit,
+                city,
+                gender,
+                age_requirement,
+                special_requirements,
+                accept_criminal_record,
+                location,
+                longitude,
+                latitude,
+                urgent_capacity,
+                working_hours,
+                relevant_experience,
+                full_time,
+                salary,
+                job_content,
+                interview_time,
+                trial_time,
+                currently_recruiting,
+                insurance_status,
+                accommodation_status
+            FROM 
+                job_positions
+            WHERE 
+                id = ?
+            """
+            params = [job_id]
+        
+        cursor.execute(query, params)
+        row = cursor.fetchone()
+        conn.close()
+        
+        if not row:
+            return [{"error": f"未找到ID为 {job_id} 的岗位"}]
+        
+        # 格式化结果
+        job_dict = {
+            "job_type": row["job_type"],
+            "recruiting_unit": row["recruiting_unit"],
+            "city": row["city"],
+            "gender": row["gender"],
+            "age_requirement": row["age_requirement"],
+            "special_requirements": row["special_requirements"],
+            "accept_criminal_record": row["accept_criminal_record"],
+            "location": row["location"],
+            "longitude": row["longitude"],
+            "latitude": row["latitude"],
+            "urgent_capacity": row["urgent_capacity"],
+            "working_hours": row["working_hours"],
+            "relevant_experience": row["relevant_experience"],
+            "full_time": row["full_time"],
+            "salary": row["salary"],
+            "job_content": row["job_content"],
+            "interview_time": row["interview_time"],
+            "trial_time": row["trial_time"],
+            "currently_recruiting": row["currently_recruiting"],
+            "insurance_status": row["insurance_status"],
+            "accommodation_status": row["accommodation_status"]
+        }
+        
+        # 处理距离和骑行时间
+        if user_latitude is not None and user_longitude is not None:
+            # 设置距离
+            job_dict["distance_km"] = row["distance_km"]
+            
+            # 获取骑行时间
+            if row["longitude"] and row["latitude"]:
+                bicycling_info = get_bicycling_duration(
+                    user_longitude, user_latitude,
+                    row["longitude"], row["latitude"]
+                )
+                
+                if "error" not in bicycling_info:
+                    job_dict["bicycling_duration_minutes"] = bicycling_info.get("duration_minutes", 0)
+                else:
+                    # 如果API调用失败，设置为默认值
+                    job_dict["bicycling_duration_minutes"] = 0
+                    print(f"获取骑行时间失败: {bicycling_info.get('error', '未知错误')}")
+            else:
+                # 如果没有有效经纬度，设置为默认值
+                job_dict["bicycling_duration_minutes"] = 0
+        else:
+            # 没有提供用户坐标，设置为None
+            job_dict["distance_km"] = None
+            job_dict["bicycling_duration_minutes"] = None
+        
+        return [job_dict]
+        
+    except sqlite3.Error as e:
+        return [{"error": f"数据库错误: {e}"}]
+    except Exception as e:
+        return [{"error": f"查询过程中发生错误: {e}"}]
+
 if __name__ == "__main__":
     # 本地测试时使用
     import os
