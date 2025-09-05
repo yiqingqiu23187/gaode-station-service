@@ -341,6 +341,7 @@ def find_best_job(
     
     Returns:
         List[Dict[str, Any]]: 推荐的岗位列表，每个字典包含：
+            - id (int): 岗位ID（数据库自增主键）
             - job_type (str): 岗位类型
             - recruiting_unit (str): 招聘单位
             - city (str): 城市
@@ -389,6 +390,7 @@ def find_best_job(
         
         query = f"""
         SELECT 
+            id,
             job_type,
             recruiting_unit,
             city,
@@ -438,6 +440,7 @@ def find_best_job(
         result = []
         for row in rows:
             job_dict = {
+                "id": row["id"],
                 "job_type": row["job_type"],
                 "recruiting_unit": row["recruiting_unit"],
                 "city": row["city"],
