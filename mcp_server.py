@@ -328,19 +328,20 @@ def find_best_job(
     user_latitude: float,
     user_longitude: float,
     user_gender: str,
-    k: int = 2000
+    max_distance_km: float = 10.0
 ) -> List[Dict[str, Any]]:
     """
     根据用户信息在job_positions表中筛选并推荐合适的工作岗位。
-    
+    返回骑行距离在指定范围内的所有岗位，按骑行距离升序排列。
+
     Args:
         user_latitude (float): 用户所在位置的纬度
         user_longitude (float): 用户所在位置的经度
         user_gender (str): 用户性别，可选值："男", "女", "不限"
-        k (int): 返回的最大岗位数量，默认2000个
+        max_distance_km (float): 最大骑行距离（公里），默认10公里
     
     Returns:
-        List[Dict[str, Any]]: 推荐的岗位列表，每个字典包含：
+        List[Dict[str, Any]]: 指定骑行距离范围内的所有岗位列表，按骑行距离升序排列，每个字典包含：
             - id (int): 岗位ID（数据库自增主键）
             - job_type (str): 岗位类型
             - recruiting_unit (str): 招聘单位
@@ -352,7 +353,6 @@ def find_best_job(
             - location (str): 位置
             - longitude (float): 岗位经度坐标
             - latitude (float): 岗位纬度坐标
-            - urgent_capacity (int): 运力紧急情况（1表示紧急，0表示普通）
             - working_hours (str): 工作时间
             - relevant_experience (str): 相关经验
             - full_time (str): 全职
@@ -363,7 +363,8 @@ def find_best_job(
             - currently_recruiting (str): 当前是否招聘
             - insurance_status (str): 保险情况
             - accommodation_status (str): 吃住情况
-            - distance_km (float): 距离用户的公里数
+            - distance_km (float): 直线距离（公里）
+            - bicycling_distance_km (float): 骑行距离（公里）
             - bicycling_duration_minutes (int): 骑行时间（分钟）
     """
     try:
@@ -401,7 +402,6 @@ def find_best_job(
             location,
             longitude,
             latitude,
-            urgent_capacity,
             working_hours,
             relevant_experience,
             full_time,
@@ -415,74 +415,76 @@ def find_best_job(
             ROUND(haversine(?, ?, longitude, latitude), 2) as distance_km
         FROM 
             job_positions
-        WHERE 
+        WHERE
             currently_recruiting = '是'
-            AND longitude IS NOT NULL 
+            AND longitude IS NOT NULL
             AND latitude IS NOT NULL
+            AND ROUND(haversine(?, ?, longitude, latitude), 2) <= ?
             {gender_condition}
-        ORDER BY 
-            urgent_capacity DESC,
+        ORDER BY
             distance_km ASC
-        LIMIT ?
         """
-        
+
+        # 使用较大的直线距离范围筛选候选岗位（骑行距离通常比直线距离长1.5-2倍）
+        candidate_distance_km = max_distance_km * 1.5
+
         # 准备查询参数
-        params = [user_longitude, user_latitude]
+        params = [user_longitude, user_latitude, user_longitude, user_latitude, candidate_distance_km]
         if user_gender in ["男", "女"]:
             params.append(user_gender)
-        params.append(k)
-        
+
         cursor.execute(query, params)
         rows = cursor.fetchall()
         conn.close()
         
-        # 格式化结果
-        result = []
+        # 获取候选岗位的骑行距离信息
+        candidates_with_bicycling = []
         for row in rows:
-            job_dict = {
-                "id": row["id"],
-                "job_type": row["job_type"],
-                "recruiting_unit": row["recruiting_unit"],
-                "city": row["city"],
-                "gender": row["gender"],
-                "age_requirement": row["age_requirement"],
-                "special_requirements": row["special_requirements"],
-                "accept_criminal_record": row["accept_criminal_record"],
-                "location": row["location"],
-                "longitude": row["longitude"],
-                "latitude": row["latitude"],
-                "urgent_capacity": row["urgent_capacity"],
-                "working_hours": row["working_hours"],
-                "relevant_experience": row["relevant_experience"],
-                "full_time": row["full_time"],
-                "salary": row["salary"],
-                "job_content": row["job_content"],
-                "interview_time": row["interview_time"],
-                "trial_time": row["trial_time"],
-                "currently_recruiting": row["currently_recruiting"],
-                "insurance_status": row["insurance_status"],
-                "accommodation_status": row["accommodation_status"],
-                "distance_km": row["distance_km"]
-            }
-            
-            # 获取骑行时间
             if row["longitude"] and row["latitude"]:
+                # 获取骑行信息
                 bicycling_info = get_bicycling_duration(
                     user_longitude, user_latitude,
                     row["longitude"], row["latitude"]
                 )
-                
+
                 if "error" not in bicycling_info:
-                    job_dict["bicycling_duration_minutes"] = bicycling_info.get("duration_minutes", 0)
+                    bicycling_distance_km = bicycling_info.get("distance_meters", 0) / 1000.0
+                    bicycling_duration_minutes = bicycling_info.get("duration_minutes", 0)
+
+                    # 只保留骑行距离在指定范围内的岗位
+                    if bicycling_distance_km <= max_distance_km:
+                        job_dict = {
+                            "id": row["id"],
+                            "job_type": row["job_type"],
+                            "recruiting_unit": row["recruiting_unit"],
+                            "city": row["city"],
+                            "gender": row["gender"],
+                            "age_requirement": row["age_requirement"],
+                            "special_requirements": row["special_requirements"],
+                            "accept_criminal_record": row["accept_criminal_record"],
+                            "location": row["location"],
+                            "longitude": row["longitude"],
+                            "latitude": row["latitude"],
+                            "working_hours": row["working_hours"],
+                            "relevant_experience": row["relevant_experience"],
+                            "full_time": row["full_time"],
+                            "salary": row["salary"],
+                            "job_content": row["job_content"],
+                            "interview_time": row["interview_time"],
+                            "trial_time": row["trial_time"],
+                            "currently_recruiting": row["currently_recruiting"],
+                            "insurance_status": row["insurance_status"],
+                            "accommodation_status": row["accommodation_status"],
+                            "distance_km": row["distance_km"],  # 直线距离
+                            "bicycling_distance_km": bicycling_distance_km,  # 骑行距离
+                            "bicycling_duration_minutes": bicycling_duration_minutes
+                        }
+                        candidates_with_bicycling.append(job_dict)
                 else:
-                    # 如果API调用失败，设置为默认值
-                    job_dict["bicycling_duration_minutes"] = 0
-                    print(f"获取骑行时间失败: {bicycling_info.get('error', '未知错误')}")
-            else:
-                # 如果没有有效经纬度，设置为默认值
-                job_dict["bicycling_duration_minutes"] = 0
-            
-            result.append(job_dict)
+                    print(f"获取骑行信息失败: {bicycling_info.get('error', '未知错误')}")
+
+        # 按骑行距离升序排序
+        result = sorted(candidates_with_bicycling, key=lambda x: x["bicycling_distance_km"])
         
         return result
         
@@ -522,7 +524,6 @@ def search_job_by_unit_type(
             - location (str): 位置
             - longitude (float): 岗位经度坐标
             - latitude (float): 岗位纬度坐标
-            - urgent_capacity (int): 运力紧急情况（1表示紧急，0表示普通）
             - working_hours (str): 工作时间
             - relevant_experience (str): 相关经验
             - full_time (str): 全职
@@ -585,7 +586,6 @@ def search_job_by_unit_type(
                 location,
                 longitude,
                 latitude,
-                urgent_capacity,
                 working_hours,
                 relevant_experience,
                 full_time,
@@ -603,8 +603,7 @@ def search_job_by_unit_type(
                 {' AND '.join(where_conditions)}
                 AND longitude IS NOT NULL 
                 AND latitude IS NOT NULL
-            ORDER BY 
-                urgent_capacity DESC,
+            ORDER BY
                 distance_km ASC
             LIMIT ?
             """
@@ -624,7 +623,6 @@ def search_job_by_unit_type(
                 location,
                 longitude,
                 latitude,
-                urgent_capacity,
                 working_hours,
                 relevant_experience,
                 full_time,
@@ -639,8 +637,7 @@ def search_job_by_unit_type(
                 job_positions
             WHERE 
                 {' AND '.join(where_conditions)}
-            ORDER BY 
-                urgent_capacity DESC,
+            ORDER BY
                 job_type ASC,
                 recruiting_unit ASC
             LIMIT ?
@@ -665,7 +662,6 @@ def search_job_by_unit_type(
                 "location": row["location"],
                 "longitude": row["longitude"],
                 "latitude": row["latitude"],
-                "urgent_capacity": row["urgent_capacity"],
                 "working_hours": row["working_hours"],
                 "relevant_experience": row["relevant_experience"],
                 "full_time": row["full_time"],
@@ -738,7 +734,6 @@ def get_job_by_id(
             - location (str): 位置
             - longitude (float): 岗位经度坐标
             - latitude (float): 岗位纬度坐标
-            - urgent_capacity (int): 运力紧急情况（1表示紧急，0表示普通）
             - working_hours (str): 工作时间
             - relevant_experience (str): 相关经验
             - full_time (str): 全职
@@ -782,7 +777,6 @@ def get_job_by_id(
                 location,
                 longitude,
                 latitude,
-                urgent_capacity,
                 working_hours,
                 relevant_experience,
                 full_time,
@@ -815,7 +809,6 @@ def get_job_by_id(
                 location,
                 longitude,
                 latitude,
-                urgent_capacity,
                 working_hours,
                 relevant_experience,
                 full_time,
@@ -852,7 +845,6 @@ def get_job_by_id(
             "location": row["location"],
             "longitude": row["longitude"],
             "latitude": row["latitude"],
-            "urgent_capacity": row["urgent_capacity"],
             "working_hours": row["working_hours"],
             "relevant_experience": row["relevant_experience"],
             "full_time": row["full_time"],
