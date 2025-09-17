@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  gaode-station-service:
+    image: gaode-station-service:latest
+    ports:
+      - "17263:17263"
+      - "5000:5000"
+    restart: unless-stopped
+    container_name: gaode-station-service
+    volumes:
+      - ./stations.db:/app/stations.db
+      - ./岗位属性.csv:/app/岗位属性.csv
+      - ./岗位位置信息底表_with_coords.csv:/app/岗位位置信息底表_with_coords.csv
+    environment:
+      - FASTMCP_HOST=0.0.0.0
+      - FASTMCP_PORT=17263
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

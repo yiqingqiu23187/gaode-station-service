@@ -9,6 +9,7 @@ from flask_cors import CORS
 import sqlite3
 import os
 import json
+from datetime import datetime
 from typing import Dict, List, Any
 
 # 获取脚本所在目录的绝对路径
@@ -23,6 +24,32 @@ def get_db_connection():
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
     return conn
+
+@app.route('/health')
+def health_check():
+    """健康检查端点"""
+    try:
+        # 检查数据库连接
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        cursor.fetchone()
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            'status': 'healthy',
+            'service': 'web_server',
+            'database': 'connected',
+            'timestamp': str(datetime.now())
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'status': 'unhealthy',
+            'service': 'web_server',
+            'error': str(e),
+            'timestamp': str(datetime.now())
+        }), 503
 
 @app.route('/')
 def index():

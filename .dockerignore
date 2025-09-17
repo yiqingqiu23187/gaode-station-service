@@ -1,12 +1,88 @@
-**/.git
-**/.gitignore
-**/README.md
-**/Dockerfile
-**/docker-compose.yml
-**/deploy.sh
-**/.dockerignore
-**/__pycache__
-**/*.pyc
-**/*.pyo
-**/create_archive.sh
-**/server.log 
+# Python缓存文件
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# 虚拟环境
+.venv/
+venv/
+ENV/
+env/
+
+# Git相关
+.git/
+.gitignore
+
+# IDE文件
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 日志文件
+*.log
+logs/
+
+# 临时文件
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+
+# 文档文件
+README.md
+*.md
+CLAUDE.md
+
+# 脚本文件
+*.sh
+!start_services.sh
+
+# 数据库备份文件
+*.db.backup.*
+
+# 构建产物
+*.tar.gz
+*.tar
+build_info.json
+docker-compose*.yml
+
+# CSV文件（在构建时不需要，运行时通过volume挂载）
+*.csv
+
+# 测试文件
+test_*.py
+*_test.py
+tests/
+
+# 其他不必要文件
+.coverage
+.pytest_cache/
+.tox/
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# 删除优化版本的Dockerfile
+Dockerfile.optimized
