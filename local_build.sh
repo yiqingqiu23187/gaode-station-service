@@ -152,8 +152,8 @@ build_docker_image() {
 
     log_info "正在构建镜像 ${IMAGE_NAME}:${IMAGE_TAG}..."
 
-    # 构建镜像
-    if ! docker build -t "${IMAGE_NAME}:${IMAGE_TAG}" .; then
+    # 构建镜像（指定x86架构）
+    if ! docker build --platform linux/amd64 -t "${IMAGE_NAME}:${IMAGE_TAG}" .; then
         log_error "Docker镜像构建失败"
         exit 1
     fi
