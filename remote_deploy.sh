@@ -161,23 +161,19 @@ deploy_on_remote() {
     # 获取镜像文件名
     IMAGE_TAR_NAME=$(basename "$IMAGE_TAR")
 
-    # 创建远程部署脚本（蓝绿部署）
+    # 创建简化的远程部署脚本
     REMOTE_DEPLOY_SCRIPT=$(cat << DEPLOY_EOF
 #!/bin/bash
 set -e
 
 IMAGE_TAR="$IMAGE_TAR_NAME"
 SERVICE_DIR="$REMOTE_PATH"
-NEW_CONTAINER="gaode-station-service-new"
-OLD_CONTAINER="gaode-station-service"
-HEALTH_CHECK_RETRIES=10
-HEALTH_CHECK_INTERVAL=3
 
-echo "🚀 开始蓝绿部署流程..."
+echo "🚀 开始简化部署流程..."
 
 cd "\$SERVICE_DIR"
 
-# 步骤1: 先加载新镜像（不影响现有服务）
+# 步骤1: 加载新镜像
 echo "📦 加载新Docker镜像..."
 if ! docker load -i "\$IMAGE_TAR"; then
     echo "❌ 镜像加载失败"
@@ -191,110 +187,23 @@ if ! docker images | grep -q "gaode-station-service.*latest"; then
 fi
 echo "✅ 新镜像加载成功"
 
-# 步骤2: 启动新容器（使用临时名称和端口）
-echo "🔄 启动新版本容器..."
-
-# 清理可能存在的临时容器
-docker stop "\$NEW_CONTAINER" 2>/dev/null || true
-docker rm "\$NEW_CONTAINER" 2>/dev/null || true
-
-# 启动新容器，使用临时端口避免冲突
-docker run -d \\
-    --name "\$NEW_CONTAINER" \\
-    -p 17264:17263 \\
-    -p 5001:5000 \\
-    -v "\$SERVICE_DIR/stations.db:/app/stations.db" \\
-    -v "\$SERVICE_DIR/岗位属性.csv:/app/岗位属性.csv" \\
-    -v "\$SERVICE_DIR/岗位位置信息底表_with_coords.csv:/app/岗位位置信息底表_with_coords.csv" \\
-    -e FASTMCP_HOST=0.0.0.0 \\
-    -e FASTMCP_PORT=17263 \\
-    --restart=unless-stopped \\
-    gaode-station-service:latest
-
-echo "⏳ 等待新容器启动..."
-sleep 10
-
-# 步骤3: 健康检查新容器
-echo "🏥 执行健康检查..."
-for i in \$(seq 1 \$HEALTH_CHECK_RETRIES); do
-    echo "健康检查尝试 \$i/\$HEALTH_CHECK_RETRIES..."
-
-    # 检查容器是否运行
-    if ! docker ps | grep -q "\$NEW_CONTAINER.*Up"; then
-        echo "❌ 新容器未正常运行"
-        docker logs "\$NEW_CONTAINER" 2>/dev/null || true
-        docker stop "\$NEW_CONTAINER" 2>/dev/null || true
-        docker rm "\$NEW_CONTAINER" 2>/dev/null || true
-        exit 1
-    fi
-
-    # 检查 Web 服务健康状态
-    HEALTH_STATUS=\$(docker exec "\$NEW_CONTAINER" curl -f -s http://localhost:5000/health 2>/dev/null | grep -o '"status":"healthy"' || echo "failed")
-
-    if [ "\$HEALTH_STATUS" = '"status":"healthy"' ]; then
-        echo "✅ 健康检查通过！Web服务已就绪，数据库连接正常"
-
-        # 额外验证MCP服务进程是否运行
-        MCP_RUNNING=\$(docker exec "\$NEW_CONTAINER" pgrep -f 'python.*mcp_server.py' > /dev/null && echo "true" || echo "false")
-        if [ "\$MCP_RUNNING" = "true" ]; then
-            echo "✅ MCP服务进程也在正常运行"
-            echo "🎯 新版本服务完全就绪！"
-            break
-        else
-            echo "⚠️ Web服务健康，但MCP服务进程可能有问题，继续等待..."
-        fi
-    fi
-
-    if [ \$i -eq \$HEALTH_CHECK_RETRIES ]; then
-        echo "❌ 健康检查失败，回滚..."
-        docker logs "\$NEW_CONTAINER" 2>/dev/null || true
-        docker stop "\$NEW_CONTAINER" 2>/dev/null || true
-        docker rm "\$NEW_CONTAINER" 2>/dev/null || true
-        exit 1
-    fi
-
-    sleep \$HEALTH_CHECK_INTERVAL
-done
-
-# 步骤4: 快速切换服务（最小化停机时间）
-echo "⚡ 执行服务切换..."
-
-# 检查是否有旧容器在运行
-OLD_CONTAINER_EXISTS=false
-if docker ps | grep -q "\$OLD_CONTAINER.*Up"; then
-    OLD_CONTAINER_EXISTS=true
-    echo "发现运行中的旧容器，准备切换"
-else
-    echo "没有发现运行中的旧容器"
-fi
-
-if [ "\$OLD_CONTAINER_EXISTS" = true ]; then
-    # 停止旧容器（此时新容器已准备就绪）
-    echo "停止旧容器..."
-    docker stop "\$OLD_CONTAINER" 2>/dev/null || true
-    docker rm "\$OLD_CONTAINER" 2>/dev/null || true
-fi
-
-# 停止新容器并使用正式配置重新启动
-echo "使用正式配置启动服务..."
-docker stop "\$NEW_CONTAINER"
-docker rm "\$NEW_CONTAINER"
-
-# 使用docker-compose启动正式服务
+# 步骤2: 启动服务（自动检测镜像变化并重启）
+echo "🚀 启动服务..."
 docker-compose up -d
 
-# 步骤5: 验证正式服务
-echo "🔍 验证正式服务..."
+# 步骤3: 等待服务启动
+echo "⏳ 等待服务启动..."
 sleep 10
 
-# 最终健康检查
+# 步骤5: 验证服务
+echo "🔍 验证服务状态..."
 for i in \$(seq 1 5); do
     # 检查容器状态
     if docker-compose ps | grep -q "Up"; then
-        # 检查健康状态
-        FINAL_HEALTH=\$(curl -f -s http://localhost:5000/health 2>/dev/null | grep -o '"status":"healthy"' || echo "failed")
-        if [ "\$FINAL_HEALTH" = '"status":"healthy"' ]; then
-            echo "✅ 蓝绿部署成功！"
+        # 检查服务是否响应
+        SERVICE_HEALTH=\$(curl -f -s -o /dev/null -w "%{http_code}" http://localhost:5000/ 2>/dev/null || echo "failed")
+        if [ "\$SERVICE_HEALTH" = "200" ]; then
+            echo "✅ 部署成功！"
             echo "服务地址: http://\$(hostname -I | awk '{print \$1}'):17263"
             echo "控制面板: http://\$(hostname -I | awk '{print \$1}'):5000"
 
@@ -304,12 +213,6 @@ for i in \$(seq 1 5); do
             docker-compose ps
 
             echo ""
-            echo "=== 部署统计 ==="
-            echo "新镜像: gaode-station-service:latest"
-            echo "部署方式: 蓝绿部署（零宕机）"
-            echo "服务中断时间: < 5秒"
-
-            echo ""
             echo "=== 查看日志命令 ==="
             echo "cd \$SERVICE_DIR && docker-compose logs -f"
             break
@@ -317,25 +220,22 @@ for i in \$(seq 1 5); do
     fi
 
     if [ \$i -eq 5 ]; then
-        echo "❌ 正式服务启动失败，查看日志:"
+        echo "❌ 服务启动失败，查看日志:"
         docker-compose logs
         exit 1
     fi
 
-    sleep 2
+    sleep 3
 done
 
 # 步骤6: 清理
-echo "🧹 清理临时文件和旧镜像..."
-
-# 清理临时文件
+echo "🧹 清理临时文件..."
 rm -f "\$IMAGE_TAR"
 
 # 清理旧镜像（保留最新的）
-echo "清理无用的镜像..."
 docker image prune -f 2>/dev/null || true
 
-echo "🎉 蓝绿部署完成！服务已成功更新"
+echo "🎉 简化部署完成！"
 DEPLOY_EOF
 )
 
