@@ -754,7 +754,7 @@ def get_job_by_id(
     """
     try:
         conn = get_db_connection()
-        
+
         # 检查job_positions表是否存在
         cursor = conn.cursor()
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='job_positions'")
@@ -762,7 +762,10 @@ def get_job_by_id(
         if not table_exists:
             conn.close()
             return [{"error": "job_positions表不存在，请先运行数据库初始化"}]
-        
+
+        # 注册haversine函数到数据库连接
+        conn.create_function("haversine", 4, haversine_distance)
+
         # 构建查询SQL
         if user_latitude is not None and user_longitude is not None:
             # 如果提供了用户坐标，计算距离
