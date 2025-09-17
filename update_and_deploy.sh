@@ -50,9 +50,9 @@ check_local_environment() {
         
         # 安装依赖
         if [ -f "requirements.txt" ]; then
-            log_info "安装Python依赖..."
-            "$VENV_PATH/bin/pip" install --upgrade pip --quiet
-            "$VENV_PATH/bin/pip" install -r requirements.txt --quiet
+            log_info "安装Python依赖（使用清华镜像源）..."
+            "$VENV_PATH/bin/pip" install --upgrade pip -i https://pypi.tuna.tsinghua.edu.cn/simple --quiet
+            "$VENV_PATH/bin/pip" install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple --quiet
             log_info "依赖安装完成 ✓"
         fi
     else
@@ -60,8 +60,8 @@ check_local_environment() {
         
         # 检查是否需要更新依赖
         if [ -f "requirements.txt" ]; then
-            log_info "检查Python依赖是否需要更新..."
-            "$VENV_PATH/bin/pip" install -r requirements.txt --quiet
+            log_info "检查Python依赖是否需要更新（使用清华镜像源）..."
+            "$VENV_PATH/bin/pip" install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple --quiet
             log_info "依赖检查完成 ✓"
         fi
     fi
@@ -94,7 +94,9 @@ check_local_environment() {
                 exit 1
             fi
         elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-            # Linux
+            # Linux - 使用清华镜像源
+            sudo sed -i 's/archive.ubuntu.com/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list 2>/dev/null || true
+            sudo sed -i 's/security.ubuntu.com/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list 2>/dev/null || true
             sudo apt-get update && sudo apt-get install -y sshpass
         else
             log_error "不支持的操作系统，请手动安装 sshpass"

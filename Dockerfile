@@ -1,32 +1,24 @@
-# 多阶段构建 - 构建阶段（指定x86架构）
-FROM --platform=linux/amd64 python:3.11-alpine AS builder
+# 使用Debian基础镜像（指定x86架构）
+FROM --platform=linux/amd64 python:3.11-slim
 
-# 安装构建时依赖
-RUN apk add --no-cache \
-    gcc \
-    musl-dev \
-    libffi-dev \
-    python3-dev
+# 更换为清华大学镜像源
+RUN sed -i 's/deb.debian.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list && \
+    sed -i 's/security.debian.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list
 
-WORKDIR /app
+# 安装系统依赖
+RUN apt-get update && apt-get install -y \
+    curl \
+    bash \
+    && rm -rf /var/lib/apt/lists/*
 
-# 复制依赖文件并安装
+# 先复制依赖文件和pip配置（变化频率低）
 COPY requirements.txt .
-RUN pip install --no-cache-dir --user \
-    -i https://pypi.tuna.tsinghua.edu.cn/simple \
-    --trusted-host pypi.tuna.tsinghua.edu.cn \
-    -r requirements.txt
+COPY pip.conf /etc/pip.conf
 
-# 生产阶段
-FROM python:3.11-alpine
+# 安装Python依赖 (使用国内镜像源)
+RUN pip install --upgrade pip && pip install -r requirements.txt
 
 WORKDIR /app
-
-# 安装运行时依赖
-RUN apk add --no-cache curl bash
-
-# 从构建阶段复制Python包
-COPY --from=builder /root/.local /usr/local
 
 # 只复制必要的应用文件
 COPY mcp_server.py web_server.py amap_utils.py database_setup.py start_services.sh ./
