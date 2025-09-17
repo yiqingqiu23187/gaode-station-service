@@ -328,7 +328,8 @@ def find_best_job(
     user_latitude: float,
     user_longitude: float,
     user_gender: str,
-    max_distance_km: float = 10.0
+    max_distance_km: float = 10.0,
+    is_part_time: bool = False
 ) -> List[Dict[str, Any]]:
     """
     根据用户信息在job_positions表中筛选并推荐合适的工作岗位。
@@ -339,9 +340,10 @@ def find_best_job(
         user_longitude (float): 用户所在位置的经度
         user_gender (str): 用户性别，可选值："男", "女", "不限"
         max_distance_km (float): 最大骑行距离（公里），默认10公里
+        is_part_time (bool): 是否寻找兼职岗位，默认False（推荐全职岗位）
     
     Returns:
-        List[Dict[str, Any]]: 指定骑行距离范围内的所有岗位列表，按骑行距离升序排列，每个字典包含：
+        List[Dict[str, Any]]: 指定骑行距离范围内符合工作性质要求的岗位列表，按骑行距离升序排列，每个字典包含：
             - id (int): 岗位ID（数据库自增主键）
             - job_type (str): 岗位类型
             - recruiting_unit (str): 招聘单位
@@ -355,7 +357,7 @@ def find_best_job(
             - latitude (float): 岗位纬度坐标
             - working_hours (str): 工作时间
             - relevant_experience (str): 相关经验
-            - full_time (str): 全职
+            - full_time (str): 是否全职（"是"=全职，"否"=兼职，根据is_part_time参数筛选）
             - salary (str): 薪资
             - job_content (str): 工作内容
             - interview_time (str): 面试时间
@@ -384,10 +386,20 @@ def find_best_job(
         # 构建SQL查询
         # 1. 剔除currently_recruiting != '是'的岗位
         # 2. 根据性别筛选
-        # 3. 计算距离并排序
+        # 3. 根据工作性质筛选（全职/兼职）
+        # 4. 计算距离并排序
         gender_condition = ""
         if user_gender in ["男", "女"]:
             gender_condition = "AND (gender = ? OR gender = '不限')"
+
+        # 兼职/全职筛选条件
+        work_type_condition = ""
+        if is_part_time:
+            # 寻找兼职：full_time字段为"否"（表示不是全职，即兼职）
+            work_type_condition = "AND full_time = '否'"
+        else:
+            # 默认寻找全职：full_time字段为"是"或空值（兼容旧数据）
+            work_type_condition = "AND (full_time = '是' OR full_time IS NULL OR full_time = '')"
         
         query = f"""
         SELECT 
@@ -421,6 +433,7 @@ def find_best_job(
             AND latitude IS NOT NULL
             AND ROUND(haversine(?, ?, longitude, latitude), 2) <= ?
             {gender_condition}
+            {work_type_condition}
         ORDER BY
             distance_km ASC
         """
