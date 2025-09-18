@@ -3,6 +3,7 @@ import sqlite3
 from typing import Optional, List, Dict, Any
 from amap_utils import get_coordinates, haversine_distance, generate_amap_web_url, get_bicycling_duration
 import os
+import concurrent.futures
 
 # Create a FastMCP server
 mcp = FastMCP("Station Location Service", dependencies=["sqlite3"])
@@ -45,7 +46,7 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
-@mcp.tool()
+# @mcp.tool()
 def find_nearest_stations(
     address: Optional[str] = None,
     latitude: Optional[float] = None,
@@ -166,7 +167,7 @@ def find_nearest_stations(
     except sqlite3.Error as e:
         return [{"error": f"Database error: {e}"}]
 
-@mcp.tool()
+# @mcp.tool()
 def search_stations_by_name(name_query: str) -> List[Dict[str, Any]]:
     """
     Search for stations by name (partial match).
@@ -276,7 +277,7 @@ def get_station_count() -> Dict[str, int]:
     except sqlite3.Error as e:
         return {"error": f"Database error: {e}"}
 
-@mcp.tool()
+# @mcp.tool()
 def geocode_address(address: str) -> Dict[str, float]:
     """
     Convert a Chinese address to GPS coordinates using Amap API.
@@ -297,7 +298,7 @@ def geocode_address(address: str) -> Dict[str, float]:
     else:
         return {"error": "Could not geocode address"}
 
-@mcp.tool()
+# @mcp.tool()
 def calculate_distance(
     from_latitude: float,
     from_longitude: float,
@@ -328,7 +329,7 @@ def find_best_job(
     user_latitude: float,
     user_longitude: float,
     user_gender: str,
-    max_distance_km: float = 10.0,
+    max_distance_km: float = 5,
     is_part_time: bool = False
 ) -> List[Dict[str, Any]]:
     """
@@ -450,51 +451,81 @@ def find_best_job(
         rows = cursor.fetchall()
         conn.close()
         
-        # 获取候选岗位的骑行距离信息
+        # 获取候选岗位的骑行距离信息（并发执行）
+        def get_bicycling_info_for_row(row):
+            """为单个岗位获取骑行信息"""
+            if not (row["longitude"] and row["latitude"]):
+                return None
+
+            bicycling_info = get_bicycling_duration(
+                user_longitude, user_latitude,
+                row["longitude"], row["latitude"]
+            )
+            return row, bicycling_info
+
+        # 使用线程池并发获取骑行信息
         candidates_with_bicycling = []
-        for row in rows:
-            if row["longitude"] and row["latitude"]:
-                # 获取骑行信息
-                bicycling_info = get_bicycling_duration(
-                    user_longitude, user_latitude,
-                    row["longitude"], row["latitude"]
-                )
+        valid_rows = [row for row in rows if row["longitude"] and row["latitude"]]
 
-                if "error" not in bicycling_info:
-                    bicycling_distance_km = bicycling_info.get("distance_meters", 0) / 1000.0
-                    bicycling_duration_minutes = bicycling_info.get("duration_minutes", 0)
+        # 设置最大并发数，避免过多并发请求
+        max_workers = min(10, len(valid_rows))
 
-                    # 只保留骑行距离在指定范围内的岗位
-                    if bicycling_distance_km <= max_distance_km:
-                        job_dict = {
-                            "id": row["id"],
-                            "job_type": row["job_type"],
-                            "recruiting_unit": row["recruiting_unit"],
-                            "city": row["city"],
-                            "gender": row["gender"],
-                            "age_requirement": row["age_requirement"],
-                            "special_requirements": row["special_requirements"],
-                            "accept_criminal_record": row["accept_criminal_record"],
-                            "location": row["location"],
-                            "longitude": row["longitude"],
-                            "latitude": row["latitude"],
-                            "working_hours": row["working_hours"],
-                            "relevant_experience": row["relevant_experience"],
-                            "full_time": row["full_time"],
-                            "salary": row["salary"],
-                            "job_content": row["job_content"],
-                            "interview_time": row["interview_time"],
-                            "trial_time": row["trial_time"],
-                            "currently_recruiting": row["currently_recruiting"],
-                            "insurance_status": row["insurance_status"],
-                            "accommodation_status": row["accommodation_status"],
-                            "distance_km": row["distance_km"],  # 直线距离
-                            "bicycling_distance_km": bicycling_distance_km,  # 骑行距离
-                            "bicycling_duration_minutes": bicycling_duration_minutes
-                        }
-                        candidates_with_bicycling.append(job_dict)
-                else:
-                    print(f"获取骑行信息失败: {bicycling_info.get('error', '未知错误')}")
+        # 如果没有有效岗位，直接返回空列表
+        if max_workers == 0:
+            result = []
+            return result
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # 提交所有任务
+            future_to_row = {executor.submit(get_bicycling_info_for_row, row): row for row in valid_rows}
+
+            # 获取结果
+            for future in concurrent.futures.as_completed(future_to_row):
+                try:
+                    result_tuple = future.result()
+                    if result_tuple is None:
+                        continue
+
+                    row, bicycling_info = result_tuple
+
+                    if "error" not in bicycling_info:
+                        bicycling_distance_km = bicycling_info.get("distance_meters", 0) / 1000.0
+                        bicycling_duration_minutes = bicycling_info.get("duration_minutes", 0)
+
+                        # 只保留骑行距离在指定范围内的岗位
+                        if bicycling_distance_km <= max_distance_km:
+                            job_dict = {
+                                "id": row["id"],
+                                "job_type": row["job_type"],
+                                "recruiting_unit": row["recruiting_unit"],
+                                "city": row["city"],
+                                "gender": row["gender"],
+                                "age_requirement": row["age_requirement"],
+                                "special_requirements": row["special_requirements"],
+                                "accept_criminal_record": row["accept_criminal_record"],
+                                "location": row["location"],
+                                "longitude": row["longitude"],
+                                "latitude": row["latitude"],
+                                "working_hours": row["working_hours"],
+                                "relevant_experience": row["relevant_experience"],
+                                "full_time": row["full_time"],
+                                "salary": row["salary"],
+                                "job_content": row["job_content"],
+                                "interview_time": row["interview_time"],
+                                "trial_time": row["trial_time"],
+                                "currently_recruiting": row["currently_recruiting"],
+                                "insurance_status": row["insurance_status"],
+                                "accommodation_status": row["accommodation_status"],
+                                "distance_km": row["distance_km"],  # 直线距离
+                                "bicycling_distance_km": bicycling_distance_km,  # 骑行距离
+                                "bicycling_duration_minutes": bicycling_duration_minutes
+                            }
+                            candidates_with_bicycling.append(job_dict)
+                    else:
+                        print(f"获取骑行信息失败: {bicycling_info.get('error', '未知错误')}")
+
+                except Exception as e:
+                    print(f"并发执行中发生错误: {e}")
 
         # 按骑行距离升序排序
         result = sorted(candidates_with_bicycling, key=lambda x: x["bicycling_distance_km"])
@@ -506,7 +537,7 @@ def find_best_job(
     except Exception as e:
         return [{"error": f"查询过程中发生错误: {e}"}]
 
-@mcp.tool()
+# @mcp.tool()
 def search_job_by_unit_type(
     recruiting_unit: Optional[str] = None,
     job_type: Optional[str] = None,

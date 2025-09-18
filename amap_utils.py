@@ -4,7 +4,7 @@ from urllib.parse import urlencode
 import math
 
 # 您提供的高德地图 Web 服务 API Key
-API_KEY = "7d2a69204c7a8340ac59834fc5d945df"
+API_KEY = "6a36d0c738545817ccbc69ed5d8c7db1"
 # 地理编码 API 地址
 GEOCODE_URL = "https://restapi.amap.com/v3/geocode/geo"
 
@@ -152,7 +152,7 @@ def generate_ride_hailing_uri(slon, slat, sname, dlon, dlat, dname):
     uri = f"amap://route/plan/?{query_string}"
     return uri
 
-def get_bicycling_duration(origin_lon, origin_lat, dest_lon, dest_lat, api_key=API_KEY, max_retries=3, retry_delay=1):
+def get_bicycling_duration(origin_lon, origin_lat, dest_lon, dest_lat, api_key=API_KEY, max_retries=2, retry_delay=1):
     """
     使用高德地图骑行路径规划API获取两点间的骑车时间。
     
