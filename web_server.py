@@ -14,7 +14,12 @@ from typing import Dict, List, Any
 
 # 获取脚本所在目录的绝对路径
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_FILE = os.path.join(SCRIPT_DIR, 'stations.db')
+# 构造数据库文件的绝对路径，优先使用data目录中的数据库
+DATA_DB_FILE = os.path.join(SCRIPT_DIR, 'data', 'stations.db')
+ROOT_DB_FILE = os.path.join(SCRIPT_DIR, 'stations.db')
+
+# 选择存在的数据库文件（优先data目录，兼容Docker环境）
+DB_FILE = DATA_DB_FILE if os.path.exists(DATA_DB_FILE) else ROOT_DB_FILE
 
 app = Flask(__name__)
 CORS(app)  # 允许跨域请求

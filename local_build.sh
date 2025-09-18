@@ -57,15 +57,15 @@ check_local_environment() {
         exit 1
     fi
 
-    # 检查带坐标的CSV文件
-    COORDS_CSV="岗位位置信息底表_with_coords.csv"
-    if [ ! -f "$COORDS_CSV" ]; then
-        log_error "未找到带坐标的CSV文件: $COORDS_CSV"
+    # 检查数据库文件
+    if [ ! -f "data/stations.db" ]; then
+        log_error "未找到数据库文件: data/stations.db"
+        log_error "请先运行数据处理脚本生成数据库"
         exit 1
     fi
 
     # 检查必要文件
-    for file in "Dockerfile" "requirements.txt" "database_setup.py"; do
+    for file in "Dockerfile" "requirements.txt"; do
         if [ ! -f "$file" ]; then
             log_error "未找到必要文件: $file"
             exit 1
@@ -94,127 +94,18 @@ process_local_data() {
     # 激活虚拟环境并处理数据
     source .venv/bin/activate
 
-    # 检查现有数据库是否包含完整数据
-    if [ -f "stations.db" ]; then
-        log_info "检查现有数据库..."
-
-        # 检查数据库中的岗位数量
-        JOB_COUNT=$(python3 -c "
-import sqlite3
-try:
-    conn = sqlite3.connect('stations.db')
-    cursor = conn.cursor()
-    cursor.execute('SELECT COUNT(*) FROM job_positions')
-    count = cursor.fetchone()[0]
-    conn.close()
-    print(count)
-except:
-    print(0)
-" 2>/dev/null || echo "0")
-
-        # 检查是否有北京数据
-        BEIJING_COUNT=$(python3 -c "
-import sqlite3
-try:
-    conn = sqlite3.connect('stations.db')
-    cursor = conn.cursor()
-    cursor.execute('SELECT COUNT(*) FROM job_positions WHERE city = \"北京\"')
-    count = cursor.fetchone()[0]
-    conn.close()
-    print(count)
-except:
-    print(0)
-" 2>/dev/null || echo "0")
-
-        # 检查是否有外卖数据
-        WAIMAI_COUNT=$(python3 -c "
-import sqlite3
-try:
-    conn = sqlite3.connect('stations.db')
-    cursor = conn.cursor()
-    cursor.execute('SELECT COUNT(*) FROM job_positions WHERE job_type = \"美团外卖骑手\"')
-    count = cursor.fetchone()[0]
-    conn.close()
-    print(count)
-except:
-    print(0)
-" 2>/dev/null || echo "0")
-
-        log_info "现有数据库统计: 总岗位${JOB_COUNT}个, 北京${BEIJING_COUNT}个, 外卖${WAIMAI_COUNT}个"
-
-        # 如果数据库包含完整数据（>1000个岗位，包含北京和外卖数据），则跳过重建
-        if [ "$JOB_COUNT" -gt 1000 ] && [ "$BEIJING_COUNT" -gt 500 ] && [ "$WAIMAI_COUNT" -gt 70 ]; then
-            log_info "检测到完整数据库，跳过重建，直接使用现有数据库 ✓"
-            deactivate
-            log_info "本地数据处理完成 ✓"
-            return
-        else
-            log_warning "数据库不完整，将重新创建"
-            # 备份旧的数据库文件
-            cp stations.db "stations.db.backup.$(date +%Y%m%d_%H%M%S)"
-            log_info "已备份现有数据库文件"
-        fi
-    fi
-
-    # 创建数据库
-    log_info "正在创建SQLite数据库..."
-    python database_setup.py
-
-    if [ ! -f "stations.db" ]; then
-        log_error "数据库创建失败"
+    # 复制数据库文件到项目根目录供Docker使用
+    if [ -f "data/stations.db" ]; then
+        log_info "复制数据库文件到项目根目录..."
+        cp data/stations.db ./stations.db
+        log_info "数据库文件复制完成 ✓"
+    else
+        log_error "未找到数据库文件 data/stations.db"
+        log_error "请先运行数据处理脚本："
+        log_error "  cd data && python beijing_data_processing_v2.py"
+        log_error "  cd data && python waimai_data_processing.py"
+        log_error "  cd data && python guangshen_parttime_processing.py"
         exit 1
-    fi
-
-    # 检查是否需要添加北京数据和外卖数据
-    log_info "检查是否需要添加额外数据..."
-
-    # 检查北京数据
-    BEIJING_AFTER=$(python3 -c "
-import sqlite3
-try:
-    conn = sqlite3.connect('stations.db')
-    cursor = conn.cursor()
-    cursor.execute('SELECT COUNT(*) FROM job_positions WHERE city = \"北京\"')
-    count = cursor.fetchone()[0]
-    conn.close()
-    print(count)
-except:
-    print(0)
-" 2>/dev/null || echo "0")
-
-    if [ "$BEIJING_AFTER" -eq 0 ] && [ -f "beijing_data_processing_v2.py" ]; then
-        log_info "添加北京岗位数据..."
-        python beijing_data_processing_v2.py
-    fi
-
-    # 检查外卖数据
-    WAIMAI_AFTER=$(python3 -c "
-import sqlite3
-try:
-    conn = sqlite3.connect('stations.db')
-    cursor = conn.cursor()
-    cursor.execute('SELECT COUNT(*) FROM job_positions WHERE job_type LIKE \"%外卖%\"')
-    count = cursor.fetchone()[0]
-    conn.close()
-    print(count)
-except:
-    print(0)
-" 2>/dev/null || echo "0")
-
-    if [ "$WAIMAI_AFTER" -eq 0 ] && [ -f "waimai_data_processing.py" ]; then
-        log_info "添加外卖岗位数据..."
-        python waimai_data_processing.py
-
-        # 修正外卖岗位类型
-        python3 -c "
-import sqlite3
-conn = sqlite3.connect('stations.db')
-cursor = conn.cursor()
-cursor.execute('UPDATE job_positions SET job_type = \"美团外卖骑手\" WHERE job_type = \"美团外卖\"')
-conn.commit()
-conn.close()
-print('已修正外卖岗位类型')
-"
     fi
 
     deactivate  # 退出虚拟环境
@@ -238,8 +129,6 @@ services:
     container_name: gaode-station-service
     volumes:
       - ./stations.db:/app/stations.db
-      - ./岗位属性.csv:/app/岗位属性.csv
-      - ./岗位位置信息底表_with_coords.csv:/app/岗位位置信息底表_with_coords.csv
     environment:
       - FASTMCP_HOST=0.0.0.0
       - FASTMCP_PORT=17263
@@ -312,9 +201,7 @@ generate_build_info() {
   "build_time": "${BUILD_TIME}",
   "image_size": "${IMAGE_SIZE}",
   "data_files": [
-    "stations.db",
-    "岗位属性.csv",
-    "岗位位置信息底表_with_coords.csv"
+    "stations.db"
   ]
 }
 EOF

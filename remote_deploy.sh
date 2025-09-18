@@ -90,12 +90,10 @@ check_build_artifacts() {
     fi
 
     # 检查数据文件
-    for file in "stations.db" "岗位属性.csv" "岗位位置信息底表_with_coords.csv"; do
-        if [ ! -f "$file" ]; then
-            log_error "未找到数据文件: $file"
-            exit 1
-        fi
-    done
+    if [ ! -f "stations.db" ]; then
+        log_error "未找到数据库文件: stations.db"
+        exit 1
+    fi
 
     log_info "构建产物检查完成 ✓"
     log_info "镜像文件: $IMAGE_TAR ($(du -h "$IMAGE_TAR" | cut -f1))"
@@ -138,14 +136,15 @@ upload_to_remote() {
 
     # 上传数据文件
     log_info "正在上传数据文件..."
-    for file in "stations.db" "岗位属性.csv" "岗位位置信息底表_with_coords.csv"; do
-        if [ -f "$file" ]; then
-            if ! sshpass -p "$REMOTE_PASSWORD" scp -o StrictHostKeyChecking=no "$file" "$REMOTE_USER@$REMOTE_HOST:$REMOTE_PATH/"; then
-                log_error "数据文件上传失败: $file"
-                exit 1
-            fi
+    if [ -f "stations.db" ]; then
+        if ! sshpass -p "$REMOTE_PASSWORD" scp -o StrictHostKeyChecking=no "stations.db" "$REMOTE_USER@$REMOTE_HOST:$REMOTE_PATH/"; then
+            log_error "数据库文件上传失败"
+            exit 1
         fi
-    done
+    else
+        log_error "未找到数据库文件: stations.db"
+        exit 1
+    fi
 
     # 上传构建信息文件
     log_info "正在上传构建信息..."

@@ -15,7 +15,7 @@ def read_guangzhou_parttime_data() -> List[Dict]:
     """读取广州兼职岗位数据"""
     print("\n=== 读取广州兼职岗位数据 ===")
     
-    gz_file = "原始数据/广深/9.17广州兼职需求.csv"
+    gz_file = "原始数据/9.15广州最新需求.csv"
     if not os.path.exists(gz_file):
         print(f"文件不存在: {gz_file}")
         return []
@@ -27,8 +27,12 @@ def read_guangzhou_parttime_data() -> List[Dict]:
         
         # 读取广州兼职待遇信息
         gz_salary_file = "原始数据/广深/广州兼职待遇"
-        with open(gz_salary_file, 'r', encoding='utf-8') as f:
-            gz_salary_info = f.read().strip()
+        try:
+            with open(gz_salary_file, 'r', encoding='utf-8') as f:
+                gz_salary_info = f.read().strip()
+        except FileNotFoundError:
+            print(f"待遇文件不存在: {gz_salary_file}，使用默认待遇信息")
+            gz_salary_info = "待遇信息请联系HR确认"
         
         gz_jobs = []
         
@@ -91,7 +95,7 @@ def read_shenzhen_parttime_data() -> List[Dict]:
     """读取深圳兼职岗位数据"""
     print("\n=== 读取深圳兼职岗位数据 ===")
     
-    sz_file = "原始数据/广深/深圳兼职需求9.15-20250915.csv"
+    sz_file = "原始数据/深圳需求9.15-20250915.csv"
     if not os.path.exists(sz_file):
         print(f"文件不存在: {sz_file}")
         return []
@@ -103,8 +107,12 @@ def read_shenzhen_parttime_data() -> List[Dict]:
         
         # 读取深圳兼职待遇信息
         sz_salary_file = "原始数据/广深/深圳兼职待遇"
-        with open(sz_salary_file, 'r', encoding='utf-8') as f:
-            sz_salary_info = f.read().strip()
+        try:
+            with open(sz_salary_file, 'r', encoding='utf-8') as f:
+                sz_salary_info = f.read().strip()
+        except FileNotFoundError:
+            print(f"待遇文件不存在: {sz_salary_file}，使用默认待遇信息")
+            sz_salary_info = "待遇信息请联系HR确认"
         
         sz_jobs = []
         
