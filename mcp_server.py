@@ -329,11 +329,12 @@ def find_best_job(
     user_longitude: float,
     user_gender: str,
     max_distance_km: float = 10.0,
-    is_part_time: bool = False
+    is_part_time: bool = False,
+    max_results: int = 20
 ) -> List[Dict[str, Any]]:
     """
     根据用户信息在job_positions表中筛选并推荐合适的工作岗位。
-    返回骑行距离在指定范围内的所有岗位，按骑行距离升序排列。
+    返回骑行距离在指定范围内的岗位，按骑行距离升序排列，最多返回指定数量的岗位。
 
     Args:
         user_latitude (float): 用户所在位置的纬度
@@ -341,9 +342,10 @@ def find_best_job(
         user_gender (str): 用户性别，可选值："男", "女", "不限"
         max_distance_km (float): 最大骑行距离（公里），默认10公里
         is_part_time (bool): 是否寻找兼职岗位，默认False（推荐全职岗位）
-    
+        max_results (int): 最大返回岗位数量，默认20个，用于控制查询性能
+
     Returns:
-        List[Dict[str, Any]]: 指定骑行距离范围内符合工作性质要求的岗位列表，按骑行距离升序排列，每个字典包含：
+        List[Dict[str, Any]]: 指定骑行距离范围内符合工作性质要求的岗位列表，按骑行距离升序排列，最多返回max_results个岗位，每个字典包含：
             - id (int): 岗位ID（数据库自增主键）
             - job_type (str): 岗位类型
             - recruiting_unit (str): 招聘单位
@@ -452,8 +454,17 @@ def find_best_job(
         
         # 获取候选岗位的骑行距离信息
         candidates_with_bicycling = []
+        processed_count = 0
+
         for row in rows:
+            # 如果已经找到足够的岗位，停止处理
+            if len(candidates_with_bicycling) >= max_results:
+                break
+
             if row["longitude"] and row["latitude"]:
+                processed_count += 1
+                print(f"正在处理第{processed_count}个岗位: {row['recruiting_unit']} - {row['job_type']}")
+
                 # 获取骑行信息
                 bicycling_info = get_bicycling_duration(
                     user_longitude, user_latitude,
@@ -493,13 +504,19 @@ def find_best_job(
                             "bicycling_duration_minutes": bicycling_duration_minutes
                         }
                         candidates_with_bicycling.append(job_dict)
+                        print(f"✅ 找到符合条件的岗位: {row['recruiting_unit']} (骑行距离: {bicycling_distance_km:.2f}km)")
+                    else:
+                        print(f"❌ 岗位超出距离范围: {row['recruiting_unit']} (骑行距离: {bicycling_distance_km:.2f}km > {max_distance_km}km)")
                 else:
                     print(f"获取骑行信息失败: {bicycling_info.get('error', '未知错误')}")
 
+        print(f"处理完成: 共处理{processed_count}个岗位，找到{len(candidates_with_bicycling)}个符合条件的岗位")
+
         # 按骑行距离升序排序
         result = sorted(candidates_with_bicycling, key=lambda x: x["bicycling_distance_km"])
-        
-        return result
+
+        # 确保不超过最大返回数量
+        return result[:max_results]
         
     except sqlite3.Error as e:
         return [{"error": f"数据库错误: {e}"}]
