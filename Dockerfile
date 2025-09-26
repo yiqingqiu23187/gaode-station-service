@@ -22,7 +22,7 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 WORKDIR /app
 
 # 只复制必要的应用文件
-COPY mcp_server.py web_server.py amap_utils.py database_setup.py start_services.sh ./
+COPY mcp_server.py web_server.py amap_utils.py start_services.sh ./
 
 # 暴露端口
 EXPOSE 17263 5000

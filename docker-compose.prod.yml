@@ -10,8 +10,6 @@ services:
     container_name: gaode-station-service
     volumes:
       - ./stations.db:/app/stations.db
-      - ./岗位属性.csv:/app/岗位属性.csv
-      - ./岗位位置信息底表_with_coords.csv:/app/岗位位置信息底表_with_coords.csv
     environment:
       - FASTMCP_HOST=0.0.0.0
       - FASTMCP_PORT=17263
