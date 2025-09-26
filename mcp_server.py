@@ -333,24 +333,23 @@ def find_best_job(
     user_latitude: float,
     user_longitude: float,
     user_gender: str,
-    max_distance_km: float = 10.0,
-    is_part_time: bool = False,
-    max_results: int = 20
+    max_distance_km: float = 5.0,
+    is_part_time: bool = False
 ) -> List[Dict[str, Any]]:
     """
     根据用户信息在job_positions表中筛选并推荐合适的工作岗位。
-    返回骑行距离在指定范围内的岗位，按骑行距离升序排列，最多返回指定数量的岗位。
+    返回骑行距离在指定范围内的所有岗位，按骑行距离升序排列。
+    优化了距离计算：相同位置的岗位只计算一次骑行距离，提高查询效率。
 
     Args:
         user_latitude (float): 用户所在位置的纬度
         user_longitude (float): 用户所在位置的经度
         user_gender (str): 用户性别，可选值："男", "女", "不限"
-        max_distance_km (float): 最大骑行距离（公里），默认10公里
+        max_distance_km (float): 最大骑行距离（公里），默认5公里
         is_part_time (bool): 是否寻找兼职岗位，默认False（推荐全职岗位）
-        max_results (int): 最大返回岗位数量，默认20个，用于控制查询性能
 
     Returns:
-        List[Dict[str, Any]]: 指定骑行距离范围内符合工作性质要求的岗位列表，按骑行距离升序排列，最多返回max_results个岗位，每个字典包含：
+        List[Dict[str, Any]]: 指定骑行距离范围内符合工作性质要求的所有岗位列表，按骑行距离升序排列，每个字典包含：
             - id (int): 岗位ID（数据库自增主键）
             - job_type (str): 岗位类型
             - recruiting_unit (str): 招聘单位
@@ -457,49 +456,57 @@ def find_best_job(
         rows = cursor.fetchall()
         conn.close()
         
-        # 获取候选岗位的骑行距离信息（并发执行）
-        def get_bicycling_info_for_row(row):
-            """为单个岗位获取骑行信息"""
-            if not (row["longitude"] and row["latitude"]):
-                return None
-
-            bicycling_info = get_bicycling_duration(
-                user_longitude, user_latitude,
-                row["longitude"], row["latitude"]
-            )
-            return row, bicycling_info
-
-        # 使用线程池并发获取骑行信息
-        candidates_with_bicycling = []
+        # 优化骑行距离计算：按位置分组，相同位置只计算一次
         valid_rows = [row for row in rows if row["longitude"] and row["latitude"]]
 
-        # 限制处理的岗位数量以提高性能，取前max_results*2个候选岗位进行并发处理
-        # 这样可以确保在距离筛选后仍有足够的岗位
-        process_limit = min(len(valid_rows), max_results * 2)
-        valid_rows = valid_rows[:process_limit]
+        # 按位置分组岗位（经纬度相同的岗位归为一组）
+        location_groups = {}
+        for row in valid_rows:
+            location_key = f"{row['longitude']},{row['latitude']}"
+            if location_key not in location_groups:
+                location_groups[location_key] = []
+            location_groups[location_key].append(row)
 
-        print(f"正在并发处理 {len(valid_rows)} 个候选岗位...")
+        print(f"共找到 {len(valid_rows)} 个候选岗位，分布在 {len(location_groups)} 个不同位置")
+
+        # 为每个唯一位置获取骑行信息
+        def get_bicycling_info_for_location(location_key, location_rows):
+            """为单个位置获取骑行信息"""
+            if not location_rows:
+                return location_key, None, []
+
+            # 使用第一个岗位的坐标代表该位置
+            representative_row = location_rows[0]
+            bicycling_info = get_bicycling_duration(
+                user_longitude, user_latitude,
+                representative_row["longitude"], representative_row["latitude"]
+            )
+            return location_key, bicycling_info, location_rows
+
+        # 使用线程池并发获取每个位置的骑行信息
+        candidates_with_bicycling = []
 
         # 设置最大并发数，避免过多并发请求
-        max_workers = min(10, len(valid_rows))
+        max_workers = min(10, len(location_groups))
 
-        # 如果没有有效岗位，直接返回空列表
+        # 如果没有有效位置，直接返回空列表
         if max_workers == 0:
-            result = []
-            return result
+            return []
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # 提交所有任务
-            future_to_row = {executor.submit(get_bicycling_info_for_row, row): row for row in valid_rows}
+            # 提交所有位置的任务
+            future_to_location = {
+                executor.submit(get_bicycling_info_for_location, location_key, location_rows): location_key
+                for location_key, location_rows in location_groups.items()
+            }
 
             # 获取结果
-            for future in concurrent.futures.as_completed(future_to_row):
+            for future in concurrent.futures.as_completed(future_to_location):
                 try:
-                    result_tuple = future.result()
-                    if result_tuple is None:
-                        continue
+                    location_key, bicycling_info, location_rows = future.result()
 
-                    row, bicycling_info = result_tuple
+                    if bicycling_info is None or not location_rows:
+                        continue
 
                     if "error" not in bicycling_info:
                         bicycling_distance_km = bicycling_info.get("distance_meters", 0) / 1000.0
@@ -507,46 +514,50 @@ def find_best_job(
 
                         # 只保留骑行距离在指定范围内的岗位
                         if bicycling_distance_km <= max_distance_km:
-                            job_dict = {
-                                "id": row["id"],
-                                "job_type": row["job_type"],
-                                "recruiting_unit": row["recruiting_unit"],
-                                "city": row["city"],
-                                "gender": row["gender"],
-                                "age_requirement": row["age_requirement"],
-                                "special_requirements": row["special_requirements"],
-                                "accept_criminal_record": row["accept_criminal_record"],
-                                "location": row["location"],
-                                "longitude": row["longitude"],
-                                "latitude": row["latitude"],
-                                "working_hours": row["working_hours"],
-                                "relevant_experience": row["relevant_experience"],
-                                "full_time": row["full_time"],
-                                "salary": row["salary"],
-                                "job_content": row["job_content"],
-                                "interview_time": row["interview_time"],
-                                "trial_time": row["trial_time"],
-                                "currently_recruiting": row["currently_recruiting"],
-                                "insurance_status": row["insurance_status"],
-                                "accommodation_status": row["accommodation_status"],
-                                "distance_km": row["distance_km"],  # 直线距离
-                                "bicycling_distance_km": bicycling_distance_km,  # 骑行距离
-                                "bicycling_duration_minutes": bicycling_duration_minutes
-                            }
-                            candidates_with_bicycling.append(job_dict)
+                            # 为该位置的所有岗位添加相同的骑行信息
+                            for row in location_rows:
+                                job_dict = {
+                                    "id": row["id"],
+                                    "job_type": row["job_type"],
+                                    "recruiting_unit": row["recruiting_unit"],
+                                    "city": row["city"],
+                                    "gender": row["gender"],
+                                    "age_requirement": row["age_requirement"],
+                                    "special_requirements": row["special_requirements"],
+                                    "accept_criminal_record": row["accept_criminal_record"],
+                                    "location": row["location"],
+                                    "longitude": row["longitude"],
+                                    "latitude": row["latitude"],
+                                    "working_hours": row["working_hours"],
+                                    "relevant_experience": row["relevant_experience"],
+                                    "full_time": row["full_time"],
+                                    "salary": row["salary"],
+                                    "job_content": row["job_content"],
+                                    "interview_time": row["interview_time"],
+                                    "trial_time": row["trial_time"],
+                                    "currently_recruiting": row["currently_recruiting"],
+                                    "insurance_status": row["insurance_status"],
+                                    "accommodation_status": row["accommodation_status"],
+                                    "distance_km": row["distance_km"],  # 直线距离
+                                    "bicycling_distance_km": bicycling_distance_km,  # 骑行距离
+                                    "bicycling_duration_minutes": bicycling_duration_minutes
+                                }
+                                candidates_with_bicycling.append(job_dict)
                     else:
-                        print(f"获取骑行信息失败: {bicycling_info.get('error', '未知错误')}")
+                        print(f"位置 {location_key} 获取骑行信息失败: {bicycling_info.get('error', '未知错误')}")
 
                 except Exception as e:
                     print(f"并发执行中发生错误: {e}")
 
-        print(f"处理完成: 共处理 {len(valid_rows)} 个岗位，找到 {len(candidates_with_bicycling)} 个符合条件的岗位")
+        print(f"处理完成: 共处理 {len(location_groups)} 个位置，找到 {len(candidates_with_bicycling)} 个符合条件的岗位")
 
         # 按骑行距离升序排序
         result = sorted(candidates_with_bicycling, key=lambda x: x["bicycling_distance_km"])
 
-        # 确保不超过最大返回数量
-        return result[:max_results]
+        # 返回所有符合条件的岗位（取消数量限制）
+        # 如果需要限制数量，可以取消下面的注释
+        # return result[:max_results]
+        return result
         
     except sqlite3.Error as e:
         return [{"error": f"数据库错误: {e}"}]
@@ -775,13 +786,13 @@ def get_job_by_id(
     user_longitude: Optional[float] = None
 ) -> List[Dict[str, Any]]:
     """
-    根据岗位ID进行精确岗位属性查询。
-    
+    根据岗位ID进行精确岗位属性查询，并返回同地点其他岗位信息。
+
     Args:
         job_id (int): 岗位ID，必填参数
         user_latitude (float, optional): 用户纬度，用于计算距离和骑行时间
         user_longitude (float, optional): 用户经度，用于计算距离和骑行时间
-    
+
     Returns:
         List[Dict[str, Any]]: 岗位详情列表，字段结构与find_best_job一致：
             - job_type (str): 岗位类型
@@ -806,6 +817,7 @@ def get_job_by_id(
             - accommodation_status (str): 吃住情况
             - distance_km (float or None): 距离用户的公里数（如果提供用户坐标）
             - bicycling_duration_minutes (int or None): 骑行时间（分钟，如果提供用户坐标）
+            - other_jobs_at_same_location (List[str]): 同地点其他岗位名称列表
     """
     try:
         conn = get_db_connection()
@@ -888,11 +900,27 @@ def get_job_by_id(
         
         cursor.execute(query, params)
         row = cursor.fetchone()
-        conn.close()
-        
+
         if not row:
+            conn.close()
             return [{"error": f"未找到ID为 {job_id} 的岗位"}]
-        
+
+        # 查找同地点其他岗位
+        other_jobs_query = """
+        SELECT DISTINCT job_type
+        FROM job_positions
+        WHERE recruiting_unit = ?
+        AND location = ?
+        AND id != ?
+        AND currently_recruiting = '是'
+        ORDER BY job_type
+        """
+        cursor.execute(other_jobs_query, [row["recruiting_unit"], row["location"], job_id])
+        other_jobs_rows = cursor.fetchall()
+        other_jobs_at_same_location = [job_row["job_type"] for job_row in other_jobs_rows]
+
+        conn.close()
+
         # 格式化结果
         job_dict = {
             "job_type": row["job_type"],
@@ -914,9 +942,10 @@ def get_job_by_id(
             "trial_time": row["trial_time"],
             "currently_recruiting": row["currently_recruiting"],
             "insurance_status": row["insurance_status"],
-            "accommodation_status": row["accommodation_status"]
+            "accommodation_status": row["accommodation_status"],
+            "other_jobs_at_same_location": other_jobs_at_same_location
         }
-        
+
         # 处理距离和骑行时间
         if user_latitude is not None and user_longitude is not None:
             # 设置距离
