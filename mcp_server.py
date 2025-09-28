@@ -973,7 +973,71 @@ def get_job_by_id(
             job_dict["bicycling_duration_minutes"] = None
         
         return [job_dict]
-        
+
+    except sqlite3.Error as e:
+        return [{"error": f"数据库错误: {e}"}]
+    except Exception as e:
+        return [{"error": f"查询过程中发生错误: {e}"}]
+
+@mcp.tool()
+def interview_information(
+    job_id: int,
+    user_latitude: Optional[float] = None,
+    user_longitude: Optional[float] = None
+) -> List[Dict[str, Any]]:
+    """
+    根据岗位ID获取面试相关信息，提供必要的面试要求。
+
+    Args:
+        job_id (int): 岗位ID，必填参数
+        user_latitude (float, optional): 用户纬度，为保持与get_job_by_id接口一致而保留，本函数中不使用
+        user_longitude (float, optional): 用户经度，为保持与get_job_by_id接口一致而保留，本函数中不使用
+
+    Returns:
+        List[Dict[str, Any]]: 面试信息列表，包含以下字段：
+            - recruiting_unit (str): 招聘单位名称
+            - interview_time (str): 面试时间信息
+    """
+    try:
+        conn = get_db_connection()
+
+        # 检查job_positions表是否存在
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='job_positions'")
+        table_exists = cursor.fetchone()
+        if not table_exists:
+            conn.close()
+            return [{"error": "job_positions表不存在，请先运行数据库初始化"}]
+
+        # 查询岗位的招聘单位和面试时间信息
+        query = """
+        SELECT
+            recruiting_unit,
+            interview_time
+        FROM
+            job_positions
+        WHERE
+            id = ?
+        """
+        params = [job_id]
+
+        cursor.execute(query, params)
+        row = cursor.fetchone()
+
+        if not row:
+            conn.close()
+            return [{"error": f"未找到ID为 {job_id} 的岗位"}]
+
+        conn.close()
+
+        # 格式化结果，只返回招聘单位名称和面试时间
+        interview_info = {
+            "recruiting_unit": row["recruiting_unit"],
+            "interview_time": row["interview_time"]
+        }
+
+        return [interview_info]
+
     except sqlite3.Error as e:
         return [{"error": f"数据库错误: {e}"}]
     except Exception as e:
