@@ -13,6 +13,7 @@ import asyncio
 import logging
 import pandas as pd
 import pymysql
+import threading
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
@@ -484,8 +485,26 @@ def upload_file():
             'results': {}
         })
 
-        # 启动异步处理
-        asyncio.create_task(process_resume_workflow(file_path, job_id))
+        # 启动异步处理（在新线程中运行）
+        def run_async_workflow():
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(process_resume_workflow(file_path, job_id))
+            except Exception as e:
+                logger.error(f"异步工作流程执行失败: {e}")
+                global current_task_status
+                current_task_status.update({
+                    'step': 'error',
+                    'message': f"处理失败: {str(e)}"
+                })
+            finally:
+                loop.close()
+
+        # 在后台线程中运行异步任务
+        thread = threading.Thread(target=run_async_workflow)
+        thread.daemon = True
+        thread.start()
 
         return redirect(url_for('status'))
     else:
