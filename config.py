@@ -32,7 +32,8 @@ class Config:
 class DevelopmentConfig(Config):
     """开发环境配置"""
     DEBUG = True
-    DATABASE_URL = os.environ.get('DEV_DATABASE_URL') or 'mysql://root:password@localhost:3306/resume_dev'
+    # 使用SQLite作为默认数据库，避免MySQL连接问题
+    DATABASE_URL = os.environ.get('DEV_DATABASE_URL') or 'sqlite:///resume_dev.db'
 
 class ProductionConfig(Config):
     """生产环境配置"""
@@ -44,7 +45,7 @@ class ProductionConfig(Config):
 class TestingConfig(Config):
     """测试环境配置"""
     TESTING = True
-    DATABASE_URL = 'mysql://root:password@localhost:3306/resume_test'
+    DATABASE_URL = 'sqlite:///resume_test.db'
 
 # 配置字典
 config = {

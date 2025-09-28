@@ -13,6 +13,7 @@ import asyncio
 import logging
 import pandas as pd
 import pymysql
+import sqlite3
 import threading
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
@@ -63,37 +64,86 @@ class ResumeManager:
 
     def parse_database_url(self) -> Dict[str, str]:
         """解析数据库URL"""
-        url = self.app.config['DATABASE_URL'].replace('mysql://', '')
-        auth_part, host_part = url.split('@')
-        username, password = auth_part.split(':')
-        host_port_db = host_part.split('/')
-        host_port = host_port_db[0]
-        database = host_port_db[1].split('?')[0]
+        database_url = self.app.config['DATABASE_URL']
 
-        if ':' in host_port:
-            host, port = host_port.split(':')
+        if database_url.startswith('sqlite:///'):
+            # SQLite数据库
+            db_path = database_url.replace('sqlite:///', '')
+            return {
+                'type': 'sqlite',
+                'path': db_path
+            }
         else:
-            host = host_port
-            port = '3306'
+            # MySQL数据库
+            url = database_url.replace('mysql://', '')
+            auth_part, host_part = url.split('@')
+            username, password = auth_part.split(':')
+            host_port_db = host_part.split('/')
+            host_port = host_port_db[0]
+            database = host_port_db[1].split('?')[0]
 
-        return {
-            'host': host,
-            'port': int(port),
-            'user': username,
-            'password': password,
-            'database': database,
-            'charset': 'utf8mb4'
-        }
+            if ':' in host_port:
+                host, port = host_port.split(':')
+            else:
+                host = host_port
+                port = '3306'
+
+            return {
+                'type': 'mysql',
+                'host': host,
+                'port': int(port),
+                'user': username,
+                'password': password,
+                'database': database,
+                'charset': 'utf8mb4'
+            }
 
     def connect_database(self):
         """连接数据库"""
         try:
             db_config = self.parse_database_url()
-            self.connection = pymysql.connect(**db_config)
-            logger.info("数据库连接成功")
+
+            if db_config['type'] == 'sqlite':
+                self.connection = sqlite3.connect(db_config['path'])
+                self.connection.row_factory = sqlite3.Row  # 使结果可以按列名访问
+                logger.info(f"SQLite数据库连接成功: {db_config['path']}")
+
+                # 创建表（如果不存在）
+                self.create_tables_if_not_exists()
+            else:
+                # MySQL连接
+                mysql_config = {k: v for k, v in db_config.items() if k != 'type'}
+                self.connection = pymysql.connect(**mysql_config)
+                logger.info("MySQL数据库连接成功")
+
         except Exception as e:
             logger.error(f"数据库连接失败: {e}")
             raise
+
+    def create_tables_if_not_exists(self):
+        """创建SQLite表（如果不存在）"""
+        cursor = self.connection.cursor()
+
+        # 创建简历表
+        create_table_sql = """
+        CREATE TABLE IF NOT EXISTS resumes (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            phone TEXT,
+            wechat TEXT,
+            age TEXT,
+            expect_location TEXT,
+            expect_positions TEXT,
+            source TEXT DEFAULT 'INTERNAL',
+            deleted INTEGER DEFAULT 0,
+            create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+
+        cursor.execute(create_table_sql)
+        self.connection.commit()
+        logger.info("数据库表检查/创建完成")
 
     def close_database(self):
         """关闭数据库连接"""
@@ -198,9 +248,15 @@ class ResumeManager:
 
                     # 插入数据库
                     columns = ', '.join(resume_data.keys())
-                    placeholders = ', '.join(['%s'] * len(resume_data))
-                    sql = f"INSERT INTO resumes ({columns}) VALUES ({placeholders})"
 
+                    # 根据数据库类型使用不同的占位符
+                    db_config = self.parse_database_url()
+                    if db_config['type'] == 'sqlite':
+                        placeholders = ', '.join(['?'] * len(resume_data))
+                    else:
+                        placeholders = ', '.join(['%s'] * len(resume_data))
+
+                    sql = f"INSERT INTO resumes ({columns}) VALUES ({placeholders})"
                     cursor.execute(sql, list(resume_data.values()))
                     successful_ids.append(resume_id)
 
