@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}简历管理系统{% endblock %}</title>
+    <!-- 本地CSS文件 -->
+    <link href="{{ url_for('static', filename='css/bootstrap-minimal.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/icons.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/app.css') }}" rel="stylesheet">
+
+    <!-- 备用CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet" onerror="this.remove()">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet" onerror="this.remove()">
+
+    <style>
+        .progress-step {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        .step-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 1rem;
+            font-weight: bold;
+        }
+        .step-icon.completed {
+            background-color: #28a745;
+            color: white;
+        }
+        .step-icon.active {
+            background-color: #007bff;
+            color: white;
+        }
+        .step-icon.pending {
+            background-color: #6c757d;
+            color: white;
+        }
+        .step-icon.error {
+            background-color: #dc3545;
+            color: white;
+        }
+        .countdown {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .result-card {
+            margin-top: 1rem;
+        }
+        .upload-area {
+            border: 2px dashed #dee2e6;
+            border-radius: 0.375rem;
+            padding: 3rem;
+            text-align: center;
+            background-color: #f8f9fa;
+            transition: all 0.3s ease;
+        }
+        .upload-area:hover {
+            border-color: #007bff;
+            background-color: #e3f2fd;
+        }
+        .upload-area.dragover {
+            border-color: #007bff;
+            background-color: #e3f2fd;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-file-earmark-person"></i>
+                简历管理系统
+            </a>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- 本地JavaScript文件 -->
+    <script src="{{ url_for('static', filename='js/bootstrap-minimal.js') }}"></script>
+
+    <!-- 备用CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js" onerror="console.log('CDN fallback loaded')"></script>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

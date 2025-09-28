@@ -1,0 +1,222 @@
+/* 图标样式 - 使用Unicode字符 */
+
+.bi {
+    display: inline-block;
+    font-style: normal;
+    font-variant: normal;
+    text-rendering: auto;
+    line-height: 1;
+}
+
+/* 文件和文档图标 */
+.bi-file-earmark-person::before {
+    content: "👤";
+}
+
+.bi-cloud-upload::before {
+    content: "☁️";
+}
+
+.bi-folder2-open::before {
+    content: "📁";
+}
+
+.bi-file-earmark-excel::before {
+    content: "📊";
+}
+
+/* 界面图标 */
+.bi-x::before {
+    content: "✕";
+}
+
+.bi-check::before {
+    content: "✓";
+}
+
+.bi-check-circle-fill::before {
+    content: "✅";
+}
+
+.bi-exclamation-triangle-fill::before {
+    content: "⚠️";
+}
+
+/* 导航图标 */
+.bi-house::before {
+    content: "🏠";
+}
+
+.bi-arrow-repeat::before {
+    content: "🔄";
+}
+
+.bi-eye::before {
+    content: "👁️";
+}
+
+/* 活动图标 */
+.bi-activity::before {
+    content: "📈";
+}
+
+.bi-graph-up::before {
+    content: "📊";
+}
+
+.bi-list-check::before {
+    content: "☑️";
+}
+
+.bi-play-circle::before {
+    content: "▶️";
+}
+
+/* 数据库和存储图标 */
+.bi-database-check::before {
+    content: "💾";
+}
+
+.bi-upload::before {
+    content: "⬆️";
+}
+
+/* 通讯图标 */
+.bi-wechat::before {
+    content: "💬";
+}
+
+.bi-telephone::before {
+    content: "📞";
+}
+
+.bi-clock::before {
+    content: "🕐";
+}
+
+/* 替代方案：使用CSS绘制的简单图标 */
+.icon-file {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    background: currentColor;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M9.293 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.707A1 1 0 0 0 13.707 4L10 .293A1 1 0 0 0 9.293 0zM9.5 3.5v-2l3 3h-2a1 1 0 0 1-1-1z'/%3E%3C/svg%3E") no-repeat center;
+    mask-size: contain;
+}
+
+.icon-upload {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    background: currentColor;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z'/%3E%3Cpath d='M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708l3-3z'/%3E%3C/svg%3E") no-repeat center;
+    mask-size: contain;
+}
+
+.icon-check {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    background: currentColor;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z'/%3E%3C/svg%3E") no-repeat center;
+    mask-size: contain;
+}
+
+.icon-x {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    background: currentColor;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E") no-repeat center;
+    mask-size: contain;
+}
+
+/* 简单的CSS图标样式 */
+.simple-icon {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    text-align: center;
+    line-height: 1;
+    font-weight: bold;
+}
+
+.simple-icon-file::before {
+    content: "📄";
+}
+
+.simple-icon-upload::before {
+    content: "⬆";
+}
+
+.simple-icon-check::before {
+    content: "✓";
+    color: #28a745;
+}
+
+.simple-icon-x::before {
+    content: "✕";
+    color: #dc3545;
+}
+
+.simple-icon-home::before {
+    content: "🏠";
+}
+
+.simple-icon-activity::before {
+    content: "📊";
+}
+
+.simple-icon-clock::before {
+    content: "⏰";
+}
+
+.simple-icon-phone::before {
+    content: "📞";
+}
+
+.simple-icon-wechat::before {
+    content: "💬";
+}
+
+.simple-icon-database::before {
+    content: "💾";
+}
+
+.simple-icon-eye::before {
+    content: "👁";
+}
+
+.simple-icon-refresh::before {
+    content: "🔄";
+}
+
+.simple-icon-play::before {
+    content: "▶";
+}
+
+.simple-icon-folder::before {
+    content: "📁";
+}
+
+.simple-icon-excel::before {
+    content: "📊";
+}
+
+.simple-icon-warning::before {
+    content: "⚠";
+    color: #ffc107;
+}
+
+.simple-icon-success::before {
+    content: "✅";
+}
+
+.simple-icon-error::before {
+    content: "❌";
+}
+
+.simple-icon-info::before {
+    content: "ℹ";
+    color: #17a2b8;
+}
