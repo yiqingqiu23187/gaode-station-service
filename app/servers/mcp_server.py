@@ -1,9 +1,10 @@
 from mcp.server.fastmcp import FastMCP
 import sqlite3
 from typing import Optional, List, Dict, Any
-from app.utils.amap_utils import get_coordinates, haversine_distance, generate_amap_web_url, get_bicycling_duration
+import sys
 import os
 import concurrent.futures
+from app.utils.amap_utils import get_coordinates, haversine_distance, generate_amap_web_url, get_bicycling_duration
 
 # Create a FastMCP server
 mcp = FastMCP("Station Location Service", dependencies=["sqlite3"])

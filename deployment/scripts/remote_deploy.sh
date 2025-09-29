@@ -90,8 +90,8 @@ check_build_artifacts() {
     fi
 
     # 检查数据文件
-    if [ ! -f "stations.db" ]; then
-        log_error "未找到数据库文件: stations.db"
+    if [ ! -f "app/database/stations.db" ]; then
+        log_error "未找到数据库文件: app/database/stations.db"
         exit 1
     fi
 
@@ -136,13 +136,13 @@ upload_to_remote() {
 
     # 上传数据文件
     log_info "正在上传数据文件..."
-    if [ -f "stations.db" ]; then
-        if ! sshpass -p "$REMOTE_PASSWORD" scp -o StrictHostKeyChecking=no "stations.db" "$REMOTE_USER@$REMOTE_HOST:$REMOTE_PATH/"; then
+    if [ -f "app/database/stations.db" ]; then
+        if ! sshpass -p "$REMOTE_PASSWORD" scp -o StrictHostKeyChecking=no "app/database/stations.db" "$REMOTE_USER@$REMOTE_HOST:$REMOTE_PATH/stations.db"; then
             log_error "数据库文件上传失败"
             exit 1
         fi
     else
-        log_error "未找到数据库文件: stations.db"
+        log_error "未找到数据库文件: app/database/stations.db"
         exit 1
     fi
 
@@ -171,6 +171,20 @@ SERVICE_DIR="$REMOTE_PATH"
 echo "🚀 开始简化部署流程..."
 
 cd "\$SERVICE_DIR"
+
+# 调试信息：检查文件状态
+echo "=== 调试信息 ==="
+echo "当前目录: \$(pwd)"
+echo "目录内容:"
+ls -la
+echo "数据库文件信息:"
+if [ -f "stations.db" ]; then
+    ls -lh stations.db
+    file stations.db
+else
+    echo "stations.db 文件不存在!"
+fi
+echo "================"
 
 # 步骤1: 加载新镜像
 echo "📦 加载新Docker镜像..."

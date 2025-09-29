@@ -1,19 +1,33 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# 初始化数据库（如果还没有创建的话）
-echo "检查并初始化数据库..."
-if [ ! -f "/app/app/database/stations.db" ]; then
-    echo "数据库不存在，正在创建数据库并导入数据..."
-    echo "注意: 需要确保有数据库初始化脚本或预先创建好数据库文件"
+# 确保PYTHONPATH变量有默认值
+export PYTHONPATH="${PYTHONPATH:-}"
+
+# 初始化数据库文件
+echo "初始化数据库文件..."
+
+# 确保数据库目录存在
+mkdir -p /app/app/database
+
+# 从挂载位置复制数据库文件
+if [ -f "/tmp/stations.db" ]; then
+    echo "从临时位置复制数据库文件..."
+    cp /tmp/stations.db /app/app/database/stations.db
+    DB_SIZE=$(du -h /app/app/database/stations.db | cut -f1)
+    echo "数据库文件复制完成 ✓ (大小: $DB_SIZE)"
 else
-    echo "数据库已存在，跳过初始化"
+    echo "警告: 未找到数据库文件 /tmp/stations.db"
+    echo "请确保数据库文件已正确挂载"
 fi
 
 # 设置增量数据定时同步
 echo "设置增量数据定时同步..."
 chmod +x /app/app/cronjob/start_incremental_sync_cron.sh
 bash /app/app/cronjob/start_incremental_sync_cron.sh
+
+# 设置Python路径以正确导入模块
+export PYTHONPATH="/app:${PYTHONPATH}"
 
 # 启动 MCP Server (SSE via uvicorn in mcp_server.py)
 cd /app && python app/servers/mcp_server.py &

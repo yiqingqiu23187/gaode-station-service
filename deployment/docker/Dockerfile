@@ -20,6 +20,9 @@ WORKDIR /app
 # 复制整个应用目录
 COPY app ./app
 
+# 创建数据库目录（启动时会复制数据库文件）
+RUN mkdir -p /app/app/database
+
 # 暴露端口
 EXPOSE 17263 5000
 

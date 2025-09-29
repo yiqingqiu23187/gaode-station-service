@@ -3,6 +3,9 @@
 # 增量数据同步定时任务
 # 每天早上7点自动同步招聘状态
 
+# 确保PYTHONPATH变量有默认值
+export PYTHONPATH="${PYTHONPATH:-}"
+
 echo "🚀 设置增量数据同步定时任务..."
 
 # 安装cron（如果没有）
@@ -20,7 +23,7 @@ else
 fi
 
 # 创建增量同步cron任务 - 每天早上7点执行
-CRON_JOB="0 7 * * * cd /app && $PYTHON_CMD app/cronjob/sync_hive_jobs_incremental.py >> /app/incremental_sync.log 2>&1"
+CRON_JOB="0 7 * * * cd /app && export PYTHONPATH='/app' && $PYTHON_CMD app/cronjob/sync_hive_jobs_incremental.py >> /app/incremental_sync.log 2>&1"
 
 # 备份当前crontab（如果存在）
 crontab -l > /tmp/current_crontab 2>/dev/null || true
@@ -48,7 +51,7 @@ echo "📋 查看所有任务: crontab -l"
 # 手动执行一次（可选）
 if [ "$1" = "--run-now" ]; then
     echo "🔄 立即执行一次增量同步..."
-    cd /app && python3 app/cronjob/sync_hive_jobs_incremental.py
+    cd /app && export PYTHONPATH="/app" && python3 app/cronjob/sync_hive_jobs_incremental.py
 fi
 
 echo ""

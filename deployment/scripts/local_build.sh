@@ -126,7 +126,7 @@ services:
     restart: unless-stopped
     container_name: gaode-station-service
     volumes:
-      - ./app/database/stations.db:/app/app/database/stations.db
+      - ./stations.db:/tmp/stations.db:ro
     environment:
       - FASTMCP_HOST=0.0.0.0
       - FASTMCP_PORT=17263
