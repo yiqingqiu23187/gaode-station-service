@@ -1,10 +1,10 @@
 {
   "image_name": "gaode-station-service",
   "image_tag": "latest",
-  "image_id": "095ff3c90b38",
+  "image_id": "9d4f24af8764",
   "image_tar": "gaode-station-service-latest.tar",
   "compose_file": "deployment/docker/docker-compose.prod.yml",
-  "build_time": "2025-09-29 17:16:50",
+  "build_time": "2025-09-29 18:25:02",
   "image_size": "480M",
   "data_files": [
     "stations.db"

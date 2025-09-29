@@ -747,7 +747,13 @@ async def process_resume_import_workflow_with_progress(filepath: str, job_id: st
         progress_store[task_id]['steps']['import_resumes']['message'] = '正在导入简历到数据库...'
 
         import_result = await import_resumes_to_database(filepath)
-        progress_store[task_id]['steps']['import_resumes'] = import_result
+        # 更新步骤1状态
+        progress_store[task_id]['steps']['import_resumes'].update({
+            'completed': import_result['completed'],
+            'success': import_result['success'],
+            'message': import_result['message'],
+            'data': import_result.get('data', {})
+        })
 
         if not import_result['success']:
             progress_store[task_id]['summary'] = {'message': '简历导入失败，流程终止', 'total_processed': 0}
@@ -766,7 +772,13 @@ async def process_resume_import_workflow_with_progress(filepath: str, job_id: st
         progress_store[task_id]['steps']['add_wechat']['message'] = '正在添加微信联系人...'
 
         wechat_result = await add_wechat_contacts_from_excel(filepath)
-        progress_store[task_id]['steps']['add_wechat'] = wechat_result
+        # 更新步骤2状态
+        progress_store[task_id]['steps']['add_wechat'].update({
+            'completed': wechat_result['completed'],
+            'success': wechat_result['success'],
+            'message': wechat_result['message'],
+            'data': wechat_result.get('data', {})
+        })
 
         # 步骤3: 添加外呼任务
         logger.info("开始步骤3: 添加外呼任务")
@@ -774,7 +786,13 @@ async def process_resume_import_workflow_with_progress(filepath: str, job_id: st
         progress_store[task_id]['steps']['add_waihu']['message'] = '正在创建外呼任务...'
 
         waihu_result = await add_waihu_tasks_for_resumes(filepath, successful_resume_ids, job_id)
-        progress_store[task_id]['steps']['add_waihu'] = waihu_result
+        # 更新步骤3状态
+        progress_store[task_id]['steps']['add_waihu'].update({
+            'completed': waihu_result['completed'],
+            'success': waihu_result['success'],
+            'message': waihu_result['message'],
+            'data': waihu_result.get('data', {})
+        })
 
         # 生成总结
         total_processed = len(successful_resume_ids)
@@ -1034,7 +1052,7 @@ async def add_wechat_contacts_from_excel(filepath: str) -> Dict[str, Any]:
 
                     if result.isError:
                         error_count += 1
-                        logger.error(f"添加微信联系人失败: {phone_data['name']} - {result.content}")
+                        logger.error(f"添加微信联系人失败: {phone_data['name']} - {str(result.content) if result.content else ''}")
                     else:
                         success_count += 1
                         logger.info(f"成功添加微信联系人: {phone_data['name']}")
@@ -1043,7 +1061,7 @@ async def add_wechat_contacts_from_excel(filepath: str) -> Dict[str, Any]:
                         'name': phone_data['name'],
                         'phone': phone_data['phone'],
                         'success': not result.isError,
-                        'message': result.content
+                        'message': str(result.content) if result.content else ''
                     })
 
                     # 添加延迟避免请求过于频繁
@@ -1114,7 +1132,7 @@ async def add_waihu_tasks_for_resumes(filepath: str, resume_ids: List[str], job_
 
                         if result.isError:
                             error_count += 1
-                            logger.error(f"创建外呼任务失败: {name} - {result.content}")
+                            logger.error(f"创建外呼任务失败: {name} - {str(result.content) if result.content else ''}")
                         else:
                             success_count += 1
                             logger.info(f"成功创建外呼任务: {name}")
@@ -1125,7 +1143,7 @@ async def add_waihu_tasks_for_resumes(filepath: str, resume_ids: List[str], job_
                             'phone': phone,
                             'jobId': job_id,
                             'success': not result.isError,
-                            'message': result.content
+                            'message': str(result.content) if result.content else ''
                         })
 
                         excel_index += 1
