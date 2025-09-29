@@ -10,6 +10,7 @@ RUN echo "deb https://mirrors.tuna.tsinghua.edu.cn/debian/ bookworm main contrib
 RUN apt-get update && apt-get install -y \
     curl \
     bash \
+    cron \
     && rm -rf /var/lib/apt/lists/*
 
 # 先复制依赖文件和pip配置（变化频率低）
@@ -22,13 +23,13 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 WORKDIR /app
 
 # 只复制必要的应用文件
-COPY mcp_server.py web_server.py amap_utils.py start_services.sh ./
+COPY mcp_server.py web_server.py amap_utils.py start_services.sh sync_hive_jobs_incremental.py start_incremental_sync_cron.sh ./
 
 # 暴露端口
 EXPOSE 17263 5000
 
-# 赋予启动脚本执行权限
-RUN chmod +x /app/start_services.sh
+# 赋予脚本执行权限
+RUN chmod +x /app/start_services.sh /app/start_incremental_sync_cron.sh /app/sync_hive_jobs_incremental.py
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \

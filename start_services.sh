@@ -10,6 +10,11 @@ else
     echo "数据库已存在，跳过初始化"
 fi
 
+# 设置增量数据定时同步
+echo "设置增量数据定时同步..."
+chmod +x /app/start_incremental_sync_cron.sh
+bash /app/start_incremental_sync_cron.sh
+
 # 启动 MCP Server (SSE via uvicorn in mcp_server.py)
 python mcp_server.py &
 MCP_PID=$!
