@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  gaode-station-service:
+    build:
+      context: ../../
+      dockerfile: deployment/docker/Dockerfile
+    ports:
+      - "17263:17263"
+      - "5000:5000"
+    restart: unless-stopped
+    container_name: gaode-station-service-dev
+    volumes:
+      - ../../app/database/stations.db:/app/app/database/stations.db
+      - ../../uploads:/app/uploads
+    environment:
+      - FASTMCP_HOST=0.0.0.0
+      - FASTMCP_PORT=17263
+    healthcheck:
+      test: ["CMD", "bash", "-lc", "(pgrep -f 'python.*mcp_server.py' && pgrep -f 'python.*web_server.py') > /dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s 
